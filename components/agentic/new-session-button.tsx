@@ -1,12 +1,22 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, X, Brain, Sparkles, Loader2, Eye, Zap } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, X, Brain, Sparkles, Loader2, Eye, Zap, RefreshCw } from 'lucide-react'
 import useAgenticSessionStore from '@/stores/agentic-session-store'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-const AGENTIC_MODELS = [
+interface Model {
+  id: string
+  displayName: string
+  contextWindow: number
+  inputPricing: number
+  outputPricing: number
+  isVision: boolean
+  isActive: boolean
+}
+
+const FALLBACK_MODELS = [
   {
     id: 'groq/compound',
     name: 'Groq Compound',
@@ -85,9 +95,63 @@ interface NewSessionButtonProps {
 export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSessionButtonProps) {
   const { createSession } = useAgenticSessionStore()
   const [showModal, setShowModal] = useState(false)
-  const [selectedModel, setSelectedModel] = useState(AGENTIC_MODELS[0].id)
+  const [selectedModel, setSelectedModel] = useState('groq/compound')
   const [title, setTitle] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [models, setModels] = useState<Model[]>([])
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Fetch models from API
+  const fetchModels = async () => {
+    try {
+      setIsLoadingModels(true)
+      const response = await fetch('/api/models')
+      if (!response.ok) throw new Error('Failed to fetch models')
+
+      const data = await response.json()
+      setModels(data.models || [])
+
+      // Set default selection to first model if not set
+      if (data.models && data.models.length > 0 && !selectedModel) {
+        setSelectedModel(data.models[0].id)
+      }
+    } catch (error) {
+      console.error('Error fetching models:', error)
+      toast.error('Failed to load models')
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
+
+  // Refresh models from Groq API
+  const handleRefreshModels = async () => {
+    try {
+      setIsRefreshing(true)
+      const response = await fetch('/api/models/refresh', { method: 'POST' })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.details || 'Failed to refresh models')
+      }
+
+      const data = await response.json()
+      toast.success(`Successfully synced ${data.count} models from Groq`)
+
+      // Reload models
+      await fetchModels()
+    } catch (error: any) {
+      console.error('Error refreshing models:', error)
+      toast.error(error.message || 'Failed to refresh models')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  // Load models on mount
+  useEffect(() => {
+    fetchModels()
+  }, [])
 
   const handleCreate = async () => {
     if (!selectedModel) {
@@ -152,12 +216,22 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-semibold">New Agentic Session</h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-accent rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefreshModels}
+                  disabled={isRefreshing}
+                  className="p-2 hover:bg-accent rounded-lg transition-colors disabled:opacity-50"
+                  title="Refresh models from Groq API"
+                >
+                  <RefreshCw className={cn("w-5 h-5", isRefreshing && "animate-spin")} />
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="p-2 hover:bg-accent rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Content */}
@@ -186,142 +260,184 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                 <label className="block text-sm font-medium mb-3">
                   Select Model
                 </label>
-                <div className="space-y-4">
-                  {/* Agentic Models Section */}
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Agentic Models</h3>
-                    <div className="grid gap-3">
-                      {AGENTIC_MODELS.filter(m => m.category === 'Agentic').map((model) => {
-                        const Icon = model.icon
-                        const isSelected = selectedModel === model.id
 
-                        return (
-                          <button
-                            key={model.id}
-                            onClick={() => setSelectedModel(model.id)}
-                            className={cn(
-                              'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
-                              'hover:border-primary/50',
-                              isSelected
-                                ? 'border-primary bg-primary/5'
-                                : 'border-border'
-                            )}
-                          >
-                            {/* Icon */}
-                            <div
-                              className={cn(
-                                'p-2 rounded-lg',
-                                isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
-                              )}
-                            >
-                              <Icon className="w-6 h-6" />
-                            </div>
-
-                            {/* Details */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold">{model.name}</h3>
-                                <span
-                                  className={cn(
-                                    'text-xs px-2 py-0.5 rounded-full',
-                                    isSelected
-                                      ? 'bg-primary text-primary-foreground'
-                                      : 'bg-muted text-muted-foreground'
-                                  )}
-                                >
-                                  {model.speed}
-                                </span>
-                              </div>
-                              <p className="text-sm text-muted-foreground mb-2">
-                                {model.description}
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {model.features.map((feature) => (
-                                  <span
-                                    key={feature}
-                                    className="text-xs px-2 py-1 bg-muted rounded"
-                                  >
-                                    {feature}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
+                {isLoadingModels ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   </div>
+                ) : models.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="mb-2">No models available</p>
+                    <button
+                      onClick={handleRefreshModels}
+                      className="text-primary hover:underline"
+                    >
+                      Refresh models from Groq API
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Agentic Models Section */}
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-2">Agentic Models</h3>
+                      <div className="grid gap-3">
+                        {models.filter(m => !m.isVision).map((model) => {
+                          const fallbackModel = FALLBACK_MODELS.find(f => f.id === model.id)
+                          const Icon = fallbackModel?.icon || Brain
+                          const isSelected = selectedModel === model.id
 
-                  {/* Vision Models Section */}
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Vision Models (Image Upload Support)</h3>
-                    <div className="grid gap-3">
-                      {AGENTIC_MODELS.filter(m => m.category === 'Vision').map((model) => {
-                        const Icon = model.icon
-                        const isSelected = selectedModel === model.id
-
-                        return (
-                          <button
-                            key={model.id}
-                            onClick={() => setSelectedModel(model.id)}
-                            className={cn(
-                              'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
-                              'hover:border-primary/50',
-                              isSelected
-                                ? 'border-primary bg-primary/5'
-                                : 'border-border'
-                            )}
-                          >
-                            {/* Icon */}
-                            <div
+                          return (
+                            <button
+                              key={model.id}
+                              onClick={() => setSelectedModel(model.id)}
                               className={cn(
-                                'p-2 rounded-lg',
-                                isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
+                                'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
+                                'hover:border-primary/50',
+                                isSelected
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border'
                               )}
                             >
-                              <Icon className="w-6 h-6" />
-                            </div>
+                              {/* Icon */}
+                              <div
+                                className={cn(
+                                  'p-2 rounded-lg',
+                                  isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
+                                )}
+                              >
+                                <Icon className="w-6 h-6" />
+                              </div>
 
-                            {/* Details */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold">{model.name}</h3>
-                                <span
-                                  className={cn(
-                                    'text-xs px-2 py-0.5 rounded-full',
-                                    isSelected
-                                      ? 'bg-primary text-primary-foreground'
-                                      : 'bg-muted text-muted-foreground'
+                              {/* Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold">{model.displayName}</h3>
+                                  {fallbackModel?.speed && (
+                                    <span
+                                      className={cn(
+                                        'text-xs px-2 py-0.5 rounded-full',
+                                        isSelected
+                                          ? 'bg-primary text-primary-foreground'
+                                          : 'bg-muted text-muted-foreground'
+                                      )}
+                                    >
+                                      {fallbackModel.speed}
+                                    </span>
                                   )}
-                                >
-                                  {model.speed}
-                                </span>
+                                </div>
+                                {fallbackModel?.description && (
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    {fallbackModel.description}
+                                  </p>
+                                )}
+                                {fallbackModel?.features && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {fallbackModel.features.map((feature) => (
+                                      <span
+                                        key={feature}
+                                        className="text-xs px-2 py-1 bg-muted rounded"
+                                      >
+                                        {feature}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {model.contextWindow && (
+                                  <p className="text-xs text-muted-foreground mt-2">
+                                    Context: {(model.contextWindow / 1000).toFixed(0)}K tokens
+                                  </p>
+                                )}
                               </div>
-                              <p className="text-sm text-muted-foreground mb-2">
-                                {model.description}
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {model.features.map((feature) => (
-                                  <span
-                                    key={feature}
-                                    className="text-xs px-2 py-1 bg-muted rounded"
-                                  >
-                                    {feature}
-                                  </span>
-                                ))}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Vision Models Section */}
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-2">Vision Models (Image Upload Support)</h3>
+                      <div className="grid gap-3">
+                        {models.filter(m => m.isVision).map((model) => {
+                          const fallbackModel = FALLBACK_MODELS.find(f => f.id === model.id)
+                          const Icon = fallbackModel?.icon || Eye
+                          const isSelected = selectedModel === model.id
+
+                          return (
+                            <button
+                              key={model.id}
+                              onClick={() => setSelectedModel(model.id)}
+                              className={cn(
+                                'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
+                                'hover:border-primary/50',
+                                isSelected
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border'
+                              )}
+                            >
+                              {/* Icon */}
+                              <div
+                                className={cn(
+                                  'p-2 rounded-lg',
+                                  isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
+                                )}
+                              >
+                                <Icon className="w-6 h-6" />
                               </div>
-                              {model.pricing && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  {model.pricing}
+
+                              {/* Details */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold">{model.displayName}</h3>
+                                  {fallbackModel?.speed && (
+                                    <span
+                                      className={cn(
+                                        'text-xs px-2 py-0.5 rounded-full',
+                                        isSelected
+                                          ? 'bg-primary text-primary-foreground'
+                                          : 'bg-muted text-muted-foreground'
+                                      )}
+                                    >
+                                      {fallbackModel.speed}
+                                    </span>
+                                  )}
+                                </div>
+                                {fallbackModel?.description && (
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    {fallbackModel.description}
+                                  </p>
+                                )}
+                                {fallbackModel?.features && (
+                                  <div className="flex flex-wrap gap-2 mb-2">
+                                    {fallbackModel.features.map((feature) => (
+                                      <span
+                                        key={feature}
+                                        className="text-xs px-2 py-1 bg-muted rounded"
+                                      >
+                                        {feature}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  {model.inputPricing > 0 || model.outputPricing > 0
+                                    ? `$${model.inputPricing} / $${model.outputPricing} per 1M tokens`
+                                    : 'Free'
+                                  }
                                 </p>
-                              )}
-                            </div>
-                          </button>
-                        )
-                      })}
+                                {model.contextWindow && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Context: {(model.contextWindow / 1000).toFixed(0)}K tokens
+                                  </p>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 

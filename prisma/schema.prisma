@@ -81,3 +81,21 @@ model AgenticMessage {
   @@index([sessionId])
   @@map("agentic_messages")
 }
+
+// ==================== GROQ MODELS ====================
+
+model GroqModel {
+  id                String   @id // Model ID from Groq API (e.g., 'llama-3.3-70b-versatile')
+  displayName       String   @map("display_name") // Human-readable name
+  contextWindow     Int      @map("context_window") // Max context length
+  inputPricing      Float    @map("input_pricing")  // Cost per 1M input tokens
+  outputPricing     Float    @map("output_pricing") // Cost per 1M output tokens
+  isVision          Boolean  @default(false) @map("is_vision") // Supports image inputs
+  isActive          Boolean  @default(true) @map("is_active") // Available for use
+
+  // Timestamps
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("groq_models")
+}
