@@ -1,0 +1,306 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+import { Send, Loader2, Bot, User, Brain } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import ReactMarkdown from 'react-markdown'
+import { cn } from '@/lib/utils'
+import useAgenticSessionStore from '@/stores/agentic-session-store'
+import { SessionSidebar } from '@/components/agentic/session-sidebar'
+import { SessionHeader } from '@/components/agentic/session-header'
+import { MessageCostBadge } from '@/components/agentic/message-cost-badge'
+
+export default function AgenticPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  const {
+    activeSessionId,
+    messages,
+    isLoadingMessages,
+    fetchSessions,
+    fetchSessionMessages,
+    setActiveSession,
+  } = useAgenticSessionStore()
+
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+    }
+  }, [status, router])
+
+  // Load sessions on mount
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchSessions()
+    }
+  }, [status, fetchSessions])
+
+  // Load messages when active session changes
+  useEffect(() => {
+    if (activeSessionId) {
+      fetchSessionMessages(activeSessionId)
+    }
+  }, [activeSessionId, fetchSessionMessages])
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, streamingContent])
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    }
+  }, [input])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading || !activeSessionId) {
+      if (!activeSessionId) {
+        toast.error('Please create or select a session first')
+      }
+      return
+    }
+
+    const userMessage = input.trim()
+    setInput('')
+    setIsLoading(true)
+    setStreamingContent('')
+
+    try {
+      const response = await fetch('/api/agentic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: activeSessionId,
+          message: userMessage,
+          settings: { temperature: 0.7, maxTokens: 8192, topP: 1.0 },
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to get response')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let accumulatedContent = ''
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+
+                if (data.content) {
+                  accumulatedContent += data.content
+                  setStreamingContent(accumulatedContent)
+                }
+
+                if (data.done) {
+                  console.log('[Agentic Page] Stream completed with usage:', data.usage)
+
+                  // Reload messages to get the saved messages with cost data
+                  await fetchSessionMessages(activeSessionId)
+                  setStreamingContent('')
+
+                  // Reload sessions to update the session stats in sidebar
+                  await fetchSessions()
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete chunks
+              }
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('[Agentic] Error:', error)
+      toast.error(error.message || 'Failed to send message')
+      setStreamingContent('')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Session Sidebar */}
+      <SessionSidebar className="w-80 flex-shrink-0" />
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Session Header */}
+        <SessionHeader />
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto bg-background">
+          <div className="max-w-4xl mx-auto px-4 py-6">
+            {messages.length === 0 && !streamingContent ? (
+              // Empty State
+              <div className="flex flex-col items-center justify-center h-full text-center py-20">
+                <div className="p-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 mb-6">
+                  <Brain className="h-12 w-12 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">
+                  {activeSessionId ? 'Start a Conversation' : 'No Session Selected'}
+                </h2>
+                <p className="text-muted-foreground max-w-md">
+                  {activeSessionId
+                    ? 'Ask me anything and I will use web search, code execution, and browser automation to help you.'
+                    : 'Create or select a session to start chatting with the agentic AI.'}
+                </p>
+              </div>
+            ) : (
+              // Messages List
+              <div className="space-y-6">
+                {messages.map((message, index) => (
+                  <div
+                    key={message.id || index}
+                    className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {/* Assistant Avatar */}
+                    {message.role === 'assistant' && (
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                        <Bot className="h-5 w-5 text-white" />
+                      </div>
+                    )}
+
+                    {/* Message Content */}
+                    <div className="flex flex-col gap-2 max-w-[80%]">
+                      <div
+                        className={cn(
+                          'rounded-lg p-4',
+                          message.role === 'user'
+                            ? 'bg-primary text-primary-foreground ml-auto'
+                            : 'bg-card border'
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'prose dark:prose-invert max-w-none',
+                            message.role === 'user' && 'prose-invert'
+                          )}
+                        >
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                        </div>
+                      </div>
+
+                      {/* Cost Badge for Assistant Messages */}
+                      {message.role === 'assistant' && (
+                        <MessageCostBadge
+                          cost={message.cost}
+                          inputTokens={message.inputTokens}
+                          outputTokens={message.outputTokens}
+                          toolCalls={message.toolCalls}
+                          showDetails
+                          className="self-start"
+                        />
+                      )}
+                    </div>
+
+                    {/* User Avatar */}
+                    {message.role === 'user' && (
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary-foreground" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Streaming Message */}
+                {streamingContent && (
+                  <div className="flex gap-4 justify-start">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                      <Bot className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="max-w-[80%] rounded-lg p-4 bg-card border">
+                      <div className="prose dark:prose-invert max-w-none">
+                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                      </div>
+                      <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Generating response...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading Messages */}
+                {isLoadingMessages && messages.length === 0 && (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Input Area */}
+        <div className="border-t bg-card/50 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto px-4 py-4">
+            <form onSubmit={handleSubmit} className="flex gap-3">
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit(e)
+                  }
+                }}
+                placeholder={activeSessionId ? 'Ask anything...' : 'Create or select a session to start...'}
+                className="flex-1 resize-none rounded-lg border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[52px] max-h-[200px]"
+                rows={1}
+                disabled={isLoading || !activeSessionId}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isLoading || !activeSessionId}
+                className="px-6 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Send className="h-5 w-5" />
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

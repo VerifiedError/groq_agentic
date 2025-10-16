@@ -1,0 +1,436 @@
+import { NextRequest } from 'next/server'
+import { groq } from '@/lib/groq'
+import { prisma } from '@/lib/prisma'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { rateLimit, getRateLimitIdentifier, rateLimitConfigs } from '@/lib/rate-limit'
+import { encode } from 'gpt-tokenizer'
+import { calculateGroqCost, GroqModelName } from '@/lib/groq'
+import { parseToolCalls, calculateTotalToolCosts, type ToolUsage } from '@/lib/utils/groq-tool-costs'
+
+// Force dynamic rendering for streaming support
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
+/**
+ * POST /api/agentic - Groq Compound Agentic System Endpoint
+ *
+ * This endpoint is specifically designed for Groq's Compound agentic systems
+ * which have built-in tools (web search, code execution, browser automation).
+ *
+ * Unlike the regular streaming endpoint, this does NOT pass custom FastMCP tools.
+ * The model uses only its built-in agentic capabilities.
+ *
+ * Supported models:
+ * - groq/compound (production system)
+ * - groq/compound-mini (lightweight system)
+ */
+export async function POST(request: NextRequest) {
+  console.log('[Agentic] ========== NEW AGENTIC REQUEST ==========')
+  console.log('[Agentic] Request received at:', new Date().toISOString())
+
+  try {
+    // Check authentication
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.id) {
+      console.log('[Agentic] Authentication failed - no user ID')
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401 }
+      )
+    }
+
+    const userId = parseInt(session.user.id)
+
+    // Apply rate limiting
+    const identifier = getRateLimitIdentifier(request, session.user.id)
+    const rateLimitResponse = await rateLimit(identifier, rateLimitConfigs.aiStream)
+    if (rateLimitResponse) {
+      return rateLimitResponse
+    }
+
+    const body = await request.json()
+    const {
+      sessionId,
+      message,
+      model = 'groq/compound',
+      settings = {},
+    } = body
+
+    if (!sessionId || !message) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields' }),
+        { status: 400 }
+      )
+    }
+
+    // Only allow Groq Compound models
+    if (!model.startsWith('groq/compound')) {
+      return new Response(
+        JSON.stringify({
+          error: 'Only Groq Compound models are supported on this endpoint. Use /api/ai/stream for other models.'
+        }),
+        { status: 400 }
+      )
+    }
+
+    console.log('[Agentic] Request:', { sessionId, model })
+
+    // Extract settings with defaults
+    const {
+      temperature = 0.7,
+      maxTokens = 8192,
+      topP = 1.0,
+    } = settings
+
+    // Fetch agentic session and verify ownership
+    const agenticSession = await prisma.agenticSession.findFirst({
+      where: {
+        id: sessionId,
+        userId: userId,
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 20, // Limit context window
+        },
+      },
+    })
+
+    if (!agenticSession) {
+      return new Response(
+        JSON.stringify({ error: 'Session not found or access denied' }),
+        { status: 404 }
+      )
+    }
+
+    // Build messages array
+    const messages: any[] = [
+      {
+        role: 'system' as const,
+        content: `You are a powerful AI assistant with agentic capabilities powered by Groq Compound.
+
+You have access to built-in tools for:
+- Web search and browsing
+- Code execution (Python, JavaScript, etc.)
+- Browser automation
+- Real-time data retrieval
+
+Use these tools proactively when they would help answer the user's question. You don't need to ask permission - just use them when appropriate.
+
+Be concise, direct, and helpful. Format responses in markdown.`
+      },
+      ...agenticSession.messages.map((msg) => ({
+        role: msg.role as 'user' | 'assistant' | 'system',
+        content: msg.content,
+      })),
+      { role: 'user' as const, content: message },
+    ]
+
+    console.log('[Agentic] Using Groq Compound with built-in tools')
+    console.log('[Agentic] Model (original):', model)
+
+    // Transform model name: groq/compound -> compound-beta, groq/compound-mini -> compound-mini-beta
+    // Groq API expects -beta suffix for Compound models
+    let groqModelName = model.replace('groq/', '')
+
+    // Add -beta suffix if not present (compound -> compound-beta)
+    if (groqModelName === 'compound') {
+      groqModelName = 'compound-beta'
+    } else if (groqModelName === 'compound-mini') {
+      groqModelName = 'compound-mini-beta'
+    }
+
+    console.log('[Agentic] Model (transformed for Groq API):', groqModelName)
+    console.log('[Agentic] Settings:', { temperature, maxTokens, topP })
+
+    // Create streaming response with Groq Compound
+    const stream = await groq.chat.completions.create({
+      model: groqModelName, // Use transformed model name (compound or compound-mini)
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      top_p: topP,
+      stream: true,
+    })
+
+    // Track token usage and executed tools for cost calculation
+    let promptTokens = 0
+    let completionTokens = 0
+    let fullResponse = ''
+    let executedTools: any[] = []
+    let usageBreakdown: any = null
+
+    // Estimate prompt tokens (actual count will come from API)
+    const promptText = messages.map(m => m.content).join('\n')
+    promptTokens = encode(promptText).length
+
+    // Create a ReadableStream to send data to client
+    const encoder = new TextEncoder()
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            // Log full chunk structure for debugging
+            console.log('[Agentic] ========== CHUNK DEBUG ==========')
+            console.log('[Agentic] Raw chunk:', JSON.stringify(chunk, null, 2))
+            console.log('[Agentic] Chunk keys:', Object.keys(chunk))
+            console.log('[Agentic] Chunk type:', typeof chunk)
+            console.log('[Agentic] Has executed_tools?:', 'executed_tools' in chunk)
+            console.log('[Agentic] Has x_groq?:', 'x_groq' in chunk)
+            console.log('[Agentic] ====================================')
+
+            const content = chunk.choices[0]?.delta?.content || ''
+
+            // Accumulate content
+            if (content) {
+              fullResponse += content
+              completionTokens = encode(fullResponse).length
+
+              // Send chunk to client
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
+            }
+
+            // Check for finish reason
+            if (chunk.choices[0]?.finish_reason) {
+              console.log('[Agentic] Stream finished:', chunk.choices[0].finish_reason)
+
+              // Get actual token usage if available
+              if (chunk.usage) {
+                promptTokens = chunk.usage.prompt_tokens || promptTokens
+                completionTokens = chunk.usage.completion_tokens || completionTokens
+                console.log('[Agentic] Token usage from API:', chunk.usage)
+              }
+
+              // Extract executed_tools from chunk (Groq Compound API specific)
+              // CRITICAL: In streaming, executed_tools might be in choices[0].message.executed_tools
+              console.log('[Agentic] Checking for executed_tools...')
+              console.log('[Agentic] chunk.executed_tools:', chunk.executed_tools)
+              console.log('[Agentic] chunk.choices[0]?.message?.executed_tools:', chunk.choices[0]?.message?.executed_tools)
+              console.log('[Agentic] chunk.choices[0]?.delta?.executed_tools:', chunk.choices[0]?.delta?.executed_tools)
+
+              if (chunk.executed_tools) {
+                executedTools = chunk.executed_tools
+                console.log('[Agentic] Found executed_tools at chunk level')
+              } else if (chunk.choices[0]?.message?.executed_tools) {
+                executedTools = chunk.choices[0].message.executed_tools
+                console.log('[Agentic] Found executed_tools in message')
+              } else if (chunk.choices[0]?.delta?.executed_tools) {
+                executedTools = chunk.choices[0].delta.executed_tools
+                console.log('[Agentic] Found executed_tools in delta')
+              }
+
+              if (executedTools.length > 0) {
+                console.log('[Agentic] Executed tools:', JSON.stringify(executedTools, null, 2))
+              } else {
+                console.log('[Agentic] WARNING: No executed_tools found in any location!')
+              }
+
+              // Extract usage_breakdown if available
+              if (chunk.usage_breakdown) {
+                usageBreakdown = chunk.usage_breakdown
+                console.log('[Agentic] Usage breakdown:', JSON.stringify(usageBreakdown, null, 2))
+              }
+
+              // Calculate token costs
+              const tokenCosts = calculateGroqCost(
+                model as GroqModelName,
+                promptTokens,
+                completionTokens
+              )
+
+              // Calculate tool costs from executed_tools
+              const toolUsages: ToolUsage[] = parseToolCalls(executedTools)
+              const { total: toolCost, breakdown: toolCostBreakdown } = calculateTotalToolCosts(toolUsages)
+
+              // Total cost = token cost + tool cost
+              const totalMessageCost = tokenCosts.totalCost + toolCost
+
+              console.log('[Agentic] ========== COST BREAKDOWN ==========')
+              console.log('[Agentic] Token costs:', tokenCosts.totalCost)
+              console.log('[Agentic] Tool costs:', toolCost)
+              console.log('[Agentic] Tool usages parsed:', toolUsages)
+              console.log('[Agentic] Tool cost breakdown:', toolCostBreakdown)
+              console.log('[Agentic] Total message cost:', totalMessageCost)
+              console.log('[Agentic] ======================================')
+
+              // Save user message to AgenticMessage
+              await prisma.agenticMessage.create({
+                data: {
+                  sessionId,
+                  role: 'user',
+                  content: message,
+                  cost: 0, // User messages don't have cost
+                  inputTokens: 0,
+                  outputTokens: 0,
+                  toolCalls: null,
+                },
+              })
+
+              // Save assistant response to AgenticMessage (will update with tool costs later)
+              const assistantMessage = await prisma.agenticMessage.create({
+                data: {
+                  sessionId,
+                  role: 'assistant',
+                  content: fullResponse,
+                  cost: totalMessageCost,
+                  inputTokens: promptTokens,
+                  outputTokens: completionTokens,
+                  toolCalls: executedTools.length > 0 ? JSON.stringify({
+                    executed_tools: executedTools,
+                    usages: toolUsages,
+                    breakdown: toolCostBreakdown,
+                  }) : null,
+                },
+              })
+
+              console.log('[Agentic] Saved assistant message:', assistantMessage.id)
+
+              // HYBRID APPROACH: Make a non-streaming call to get executed_tools
+              // This is necessary because executed_tools is not available in streaming responses
+              console.log('[Agentic] ========== FETCHING EXECUTED_TOOLS ==========')
+              console.log('[Agentic] Making non-streaming call to retrieve tool metadata...')
+
+              try {
+                const metadataResponse = await groq.chat.completions.create({
+                  model: groqModelName,
+                  messages,
+                  temperature,
+                  max_tokens: maxTokens,
+                  top_p: topP,
+                  stream: false, // Non-streaming to get executed_tools
+                })
+
+                console.log('[Agentic] Metadata response received')
+                console.log('[Agentic] Has executed_tools?:', !!metadataResponse.choices[0]?.message?.executed_tools)
+
+                if (metadataResponse.choices[0]?.message?.executed_tools) {
+                  const fetchedTools = metadataResponse.choices[0].message.executed_tools
+                  console.log('[Agentic] Executed tools found:', JSON.stringify(fetchedTools, null, 2))
+
+                  // Parse tool costs
+                  const toolUsagesFromMetadata: ToolUsage[] = parseToolCalls(fetchedTools)
+                  const { total: toolCostFromMetadata, breakdown: toolCostBreakdownFromMetadata } = calculateTotalToolCosts(toolUsagesFromMetadata)
+
+                  // Recalculate total cost with tool costs
+                  const totalCostWithTools = tokenCosts.totalCost + toolCostFromMetadata
+
+                  console.log('[Agentic] Tool costs calculated:', toolCostFromMetadata)
+                  console.log('[Agentic] Total cost with tools:', totalCostWithTools)
+
+                  // Update assistant message with tool data
+                  await prisma.agenticMessage.update({
+                    where: { id: assistantMessage.id },
+                    data: {
+                      cost: totalCostWithTools,
+                      toolCalls: JSON.stringify({
+                        executed_tools: fetchedTools,
+                        usages: toolUsagesFromMetadata,
+                        breakdown: toolCostBreakdownFromMetadata,
+                      }),
+                    },
+                  })
+
+                  console.log('[Agentic] Updated message with tool costs')
+
+                  // Update totalMessageCost for session update
+                  const costDifference = toolCostFromMetadata
+
+                  // Update session with additional tool costs
+                  await prisma.agenticSession.update({
+                    where: { id: sessionId },
+                    data: {
+                      totalCost: { increment: totalMessageCost + costDifference },
+                      inputTokens: { increment: promptTokens },
+                      outputTokens: { increment: completionTokens },
+                      messageCount: { increment: 2 },
+                    },
+                  })
+
+                  console.log('[Agentic] Session updated with tool costs')
+                } else {
+                  console.log('[Agentic] No executed_tools in metadata response')
+
+                  // Update session without tool costs
+                  await prisma.agenticSession.update({
+                    where: { id: sessionId },
+                    data: {
+                      totalCost: { increment: totalMessageCost },
+                      inputTokens: { increment: promptTokens },
+                      outputTokens: { increment: completionTokens },
+                      messageCount: { increment: 2 },
+                    },
+                  })
+                }
+
+                console.log('[Agentic] ===============================================')
+              } catch (metadataError: any) {
+                console.error('[Agentic] Failed to fetch executed_tools:', metadataError.message)
+
+                // Fall back to updating session without tool costs
+                await prisma.agenticSession.update({
+                  where: { id: sessionId },
+                  data: {
+                    totalCost: { increment: totalMessageCost },
+                    inputTokens: { increment: promptTokens },
+                    outputTokens: { increment: completionTokens },
+                    messageCount: { increment: 2 },
+                  },
+                })
+              }
+
+              console.log('[Agentic] Saved messages and updated session')
+              console.log('[Agentic] Tokens:', { promptTokens, completionTokens })
+              console.log('[Agentic] Total cost:', totalMessageCost)
+
+              // Send final metadata
+              controller.enqueue(
+                encoder.encode(
+                  `data: ${JSON.stringify({
+                    done: true,
+                    usage: {
+                      promptTokens,
+                      completionTokens,
+                      totalTokens: promptTokens + completionTokens,
+                      cost: totalMessageCost,
+                      tokenCost: tokenCosts.totalCost,
+                      toolCost: toolCost,
+                    }
+                  })}\n\n`
+                )
+              )
+            }
+          }
+
+          controller.close()
+        } catch (error: any) {
+          console.error('[Agentic] Stream error:', error)
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ error: error.message || 'Stream failed' })}\n\n`
+            )
+          )
+          controller.close()
+        }
+      },
+    })
+
+    return new Response(readableStream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
+  } catch (error: any) {
+    console.error('[Agentic] Request error:', error)
+    return new Response(
+      JSON.stringify({
+        error: error.message || 'Internal server error',
+        details: error.toString()
+      }),
+      { status: 500 }
+    )
+  }
+}

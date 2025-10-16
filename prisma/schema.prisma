@@ -1,0 +1,80 @@
+// This is your Prisma schema file
+// Agentic - Standalone AI Chat Application
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER MODEL ====================
+
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  username         String?   @unique
+  name             String?
+  passwordHash     String?   @map("password_hash")
+
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  agenticSessions  AgenticSession[]
+
+  @@map("users")
+}
+
+// ==================== AGENTIC MODELS ====================
+
+model AgenticSession {
+  id            String   @id @default(cuid())
+  userId        Int      @map("user_id")
+  title         String   @default("New Agentic Session")
+  model         String   // Model ID (e.g., 'groq/compound')
+  settings      String?  // JSON: model settings (temperature, maxTokens, etc.)
+
+  // Cost Tracking
+  totalCost     Float    @default(0) @map("total_cost")
+  inputTokens   Int      @default(0) @map("input_tokens")
+  outputTokens  Int      @default(0) @map("output_tokens")
+  messageCount  Int      @default(0) @map("message_count")
+
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      AgenticMessage[]
+
+  @@index([userId])
+  @@map("agentic_sessions")
+}
+
+model AgenticMessage {
+  id            String   @id @default(cuid())
+  sessionId     String   @map("session_id")
+  role          String   // 'user' | 'assistant' | 'system'
+  content       String   // Message content
+
+  // Cost Tracking (per message)
+  cost          Float    @default(0)
+  inputTokens   Int      @default(0) @map("input_tokens")
+  outputTokens  Int      @default(0) @map("output_tokens")
+
+  // Tool Usage
+  toolCalls     String?  @map("tool_calls") // JSON array of tool calls
+
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  session       AgenticSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("agentic_messages")
+}
