@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, X, Brain, Sparkles, Loader2 } from 'lucide-react'
+import { Plus, X, Brain, Sparkles, Loader2, Eye, Zap } from 'lucide-react'
 import useAgenticSessionStore from '@/stores/agentic-session-store'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -14,6 +14,7 @@ const AGENTIC_MODELS = [
     icon: Brain,
     speed: 'Fast',
     features: ['Web Search', 'Code Execution', 'Browser Automation'],
+    category: 'Agentic',
   },
   {
     id: 'groq/compound-mini',
@@ -22,6 +23,57 @@ const AGENTIC_MODELS = [
     icon: Sparkles,
     speed: 'Very Fast',
     features: ['Web Search', 'Code Execution'],
+    category: 'Agentic',
+  },
+  {
+    id: 'meta-llama/llama-4-scout-17b-16e-instruct',
+    name: 'Llama 4 Scout (17B)',
+    description: 'Fast vision-capable model for image understanding and analysis',
+    icon: Eye,
+    speed: 'Fast',
+    features: ['Vision', 'Image Analysis', 'Text Generation'],
+    category: 'Vision',
+    pricing: '$0.11 / $0.34 per 1M tokens',
+  },
+  {
+    id: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+    name: 'Llama 4 Maverick (17B)',
+    description: 'Advanced vision model with enhanced understanding capabilities',
+    icon: Eye,
+    speed: 'Fast',
+    features: ['Vision', 'Image Analysis', 'Advanced Understanding'],
+    category: 'Vision',
+    pricing: '$0.20 / $0.60 per 1M tokens',
+  },
+  {
+    id: 'llama-3.2-11b-vision-preview',
+    name: 'Llama 3.2 Vision 11B',
+    description: 'Efficient vision model for image understanding',
+    icon: Eye,
+    speed: 'Fast',
+    features: ['Vision', 'Image Analysis', 'Text Generation'],
+    category: 'Vision',
+    pricing: '$0.18 / $0.18 per 1M tokens',
+  },
+  {
+    id: 'llama-3.2-90b-vision-preview',
+    name: 'Llama 3.2 Vision 90B',
+    description: 'High-performance vision model with superior understanding',
+    icon: Eye,
+    speed: 'Moderate',
+    features: ['Vision', 'Advanced Image Analysis', 'Complex Understanding'],
+    category: 'Vision',
+    pricing: '$0.90 / $0.90 per 1M tokens',
+  },
+  {
+    id: 'llava-v1.5-7b-4096-preview',
+    name: 'LLaVA v1.5 7B',
+    description: 'Free vision model for basic image understanding',
+    icon: Eye,
+    speed: 'Fast',
+    features: ['Vision', 'Image Analysis', 'Free'],
+    category: 'Vision',
+    pricing: 'Free',
   },
 ]
 
@@ -134,65 +186,141 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                 <label className="block text-sm font-medium mb-3">
                   Select Model
                 </label>
-                <div className="grid gap-3">
-                  {AGENTIC_MODELS.map((model) => {
-                    const Icon = model.icon
-                    const isSelected = selectedModel === model.id
+                <div className="space-y-4">
+                  {/* Agentic Models Section */}
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Agentic Models</h3>
+                    <div className="grid gap-3">
+                      {AGENTIC_MODELS.filter(m => m.category === 'Agentic').map((model) => {
+                        const Icon = model.icon
+                        const isSelected = selectedModel === model.id
 
-                    return (
-                      <button
-                        key={model.id}
-                        onClick={() => setSelectedModel(model.id)}
-                        className={cn(
-                          'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
-                          'hover:border-primary/50',
-                          isSelected
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border'
-                        )}
-                      >
-                        {/* Icon */}
-                        <div
-                          className={cn(
-                            'p-2 rounded-lg',
-                            isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
-                          )}
-                        >
-                          <Icon className="w-6 h-6" />
-                        </div>
-
-                        {/* Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold">{model.name}</h3>
-                            <span
+                        return (
+                          <button
+                            key={model.id}
+                            onClick={() => setSelectedModel(model.id)}
+                            className={cn(
+                              'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
+                              'hover:border-primary/50',
+                              isSelected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border'
+                            )}
+                          >
+                            {/* Icon */}
+                            <div
                               className={cn(
-                                'text-xs px-2 py-0.5 rounded-full',
-                                isSelected
-                                  ? 'bg-primary text-primary-foreground'
-                                  : 'bg-muted text-muted-foreground'
+                                'p-2 rounded-lg',
+                                isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
                               )}
                             >
-                              {model.speed}
-                            </span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {model.description}
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {model.features.map((feature) => (
-                              <span
-                                key={feature}
-                                className="text-xs px-2 py-1 bg-muted rounded"
-                              >
-                                {feature}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
+                              <Icon className="w-6 h-6" />
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold">{model.name}</h3>
+                                <span
+                                  className={cn(
+                                    'text-xs px-2 py-0.5 rounded-full',
+                                    isSelected
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-muted text-muted-foreground'
+                                  )}
+                                >
+                                  {model.speed}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-2">
+                                {model.description}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {model.features.map((feature) => (
+                                  <span
+                                    key={feature}
+                                    className="text-xs px-2 py-1 bg-muted rounded"
+                                  >
+                                    {feature}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Vision Models Section */}
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-2">Vision Models (Image Upload Support)</h3>
+                    <div className="grid gap-3">
+                      {AGENTIC_MODELS.filter(m => m.category === 'Vision').map((model) => {
+                        const Icon = model.icon
+                        const isSelected = selectedModel === model.id
+
+                        return (
+                          <button
+                            key={model.id}
+                            onClick={() => setSelectedModel(model.id)}
+                            className={cn(
+                              'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
+                              'hover:border-primary/50',
+                              isSelected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border'
+                            )}
+                          >
+                            {/* Icon */}
+                            <div
+                              className={cn(
+                                'p-2 rounded-lg',
+                                isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
+                              )}
+                            >
+                              <Icon className="w-6 h-6" />
+                            </div>
+
+                            {/* Details */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold">{model.name}</h3>
+                                <span
+                                  className={cn(
+                                    'text-xs px-2 py-0.5 rounded-full',
+                                    isSelected
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-muted text-muted-foreground'
+                                  )}
+                                >
+                                  {model.speed}
+                                </span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-2">
+                                {model.description}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {model.features.map((feature) => (
+                                  <span
+                                    key={feature}
+                                    className="text-xs px-2 py-1 bg-muted rounded"
+                                  >
+                                    {feature}
+                                  </span>
+                                ))}
+                              </div>
+                              {model.pricing && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  {model.pricing}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

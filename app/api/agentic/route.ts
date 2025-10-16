@@ -57,7 +57,6 @@ export async function POST(request: NextRequest) {
     const {
       sessionId,
       message,
-      model = 'groq/compound',
       settings = {},
       attachments = [],
     } = body
@@ -69,7 +68,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate that vision models are used with images and compound models without
+    // Fetch agentic session and verify ownership
+    const agenticSession = await prisma.agenticSession.findFirst({
+      where: {
+        id: sessionId,
+        userId: userId,
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: 20, // Limit context window
+        },
+      },
+    })
+
+    if (!agenticSession) {
+      return new Response(
+        JSON.stringify({ error: 'Session not found or access denied' }),
+        { status: 404 }
+      )
+    }
+
+    // Use the session's model, not the request body
+    const model = agenticSession.model
+
+    // Validate that vision models are used with images
     const hasAttachments = attachments && attachments.length > 0
     const isUsingVisionModel = isVisionModel(model)
 
@@ -100,27 +123,6 @@ export async function POST(request: NextRequest) {
       maxTokens = 8192,
       topP = 1.0,
     } = settings
-
-    // Fetch agentic session and verify ownership
-    const agenticSession = await prisma.agenticSession.findFirst({
-      where: {
-        id: sessionId,
-        userId: userId,
-      },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          take: 20, // Limit context window
-        },
-      },
-    })
-
-    if (!agenticSession) {
-      return new Response(
-        JSON.stringify({ error: 'Session not found or access denied' }),
-        { status: 404 }
-      )
-    }
 
     // Build messages array
     const systemPrompt = isUsingVisionModel
