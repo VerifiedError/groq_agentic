@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { rateLimit, getRateLimitIdentifier, rateLimitConfigs } from '@/lib/rate-limit'
 import { encode } from 'gpt-tokenizer'
-import { calculateGroqCost, GroqModelName } from '@/lib/groq'
+import { calculateGroqCost, GroqModelName, isVisionModel } from '@/lib/groq'
 import { parseToolCalls, calculateTotalToolCosts, type ToolUsage } from '@/lib/utils/groq-tool-costs'
 
 // Force dynamic rendering for streaming support
@@ -13,17 +13,20 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 /**
- * POST /api/agentic - Groq Compound Agentic System Endpoint
+ * POST /api/agentic - Groq Agentic System Endpoint
  *
- * This endpoint is specifically designed for Groq's Compound agentic systems
- * which have built-in tools (web search, code execution, browser automation).
+ * This endpoint supports both Groq's Compound agentic systems and Vision models.
  *
- * Unlike the regular streaming endpoint, this does NOT pass custom FastMCP tools.
- * The model uses only its built-in agentic capabilities.
- *
- * Supported models:
+ * Compound Models (built-in tools):
  * - groq/compound (production system)
  * - groq/compound-mini (lightweight system)
+ *
+ * Vision Models (image understanding):
+ * - meta-llama/llama-4-scout-17b-16e-instruct
+ * - meta-llama/llama-4-maverick-17b-128e-instruct
+ * - llama-3.2-11b-vision-preview
+ * - llama-3.2-90b-vision-preview
+ * - llava-v1.5-7b-4096-preview
  */
 export async function POST(request: NextRequest) {
   console.log('[Agentic] ========== NEW AGENTIC REQUEST ==========')
@@ -56,6 +59,7 @@ export async function POST(request: NextRequest) {
       message,
       model = 'groq/compound',
       settings = {},
+      attachments = [],
     } = body
 
     if (!sessionId || !message) {
@@ -65,11 +69,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Only allow Groq Compound models
-    if (!model.startsWith('groq/compound')) {
+    // Validate that vision models are used with images and compound models without
+    const hasAttachments = attachments && attachments.length > 0
+    const isUsingVisionModel = isVisionModel(model)
+
+    if (hasAttachments && !isUsingVisionModel) {
       return new Response(
         JSON.stringify({
-          error: 'Only Groq Compound models are supported on this endpoint. Use /api/ai/stream for other models.'
+          error: 'Image attachments require a vision-capable model. Please select a vision model.'
+        }),
+        { status: 400 }
+      )
+    }
+
+    // Validate attachments count (max 5 as per Groq API)
+    if (hasAttachments && attachments.length > 5) {
+      return new Response(
+        JSON.stringify({
+          error: 'Maximum 5 images per message allowed'
         }),
         { status: 400 }
       )
@@ -106,10 +123,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Build messages array
-    const messages: any[] = [
-      {
-        role: 'system' as const,
-        content: `You are a powerful AI assistant with agentic capabilities powered by Groq Compound.
+    const systemPrompt = isUsingVisionModel
+      ? `You are a powerful AI assistant with vision capabilities. You can understand and analyze images provided by users.
+
+Be concise, direct, and helpful. Format responses in markdown. When analyzing images, be detailed and accurate.`
+      : `You are a powerful AI assistant with agentic capabilities powered by Groq Compound.
 
 You have access to built-in tools for:
 - Web search and browsing
@@ -120,27 +138,83 @@ You have access to built-in tools for:
 Use these tools proactively when they would help answer the user's question. You don't need to ask permission - just use them when appropriate.
 
 Be concise, direct, and helpful. Format responses in markdown.`
+
+    const messages: any[] = [
+      {
+        role: 'system' as const,
+        content: systemPrompt
       },
-      ...agenticSession.messages.map((msg) => ({
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content: msg.content,
-      })),
-      { role: 'user' as const, content: message },
+      ...agenticSession.messages.map((msg) => {
+        // Reconstruct multi-modal messages from database
+        if (msg.attachments) {
+          try {
+            const parsedAttachments = JSON.parse(msg.attachments)
+            return {
+              role: msg.role as 'user' | 'assistant' | 'system',
+              content: [
+                { type: 'text', text: msg.content },
+                ...parsedAttachments.map((att: any) => ({
+                  type: 'image_url',
+                  image_url: {
+                    url: att.data // base64 data URL
+                  }
+                }))
+              ]
+            }
+          } catch (e) {
+            // Fall back to text-only if parsing fails
+            return {
+              role: msg.role as 'user' | 'assistant' | 'system',
+              content: msg.content,
+            }
+          }
+        }
+        return {
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+        }
+      }),
     ]
 
-    console.log('[Agentic] Using Groq Compound with built-in tools')
+    // Build the current user message (with or without images)
+    if (hasAttachments) {
+      // Multi-modal message with text and images
+      messages.push({
+        role: 'user' as const,
+        content: [
+          { type: 'text', text: message },
+          ...attachments.map((att: any) => ({
+            type: 'image_url',
+            image_url: {
+              url: att.data // base64 data URL format: data:image/jpeg;base64,...
+            }
+          }))
+        ]
+      })
+    } else {
+      // Text-only message
+      messages.push({ role: 'user' as const, content: message })
+    }
+
+    console.log('[Agentic] Model type:', isUsingVisionModel ? 'Vision' : 'Compound')
     console.log('[Agentic] Model (original):', model)
+    console.log('[Agentic] Has attachments:', hasAttachments, attachments.length)
 
     // Transform model name: groq/compound -> compound-beta, groq/compound-mini -> compound-mini-beta
-    // Groq API expects -beta suffix for Compound models
-    let groqModelName = model.replace('groq/', '')
+    // Groq API expects -beta suffix for Compound models only
+    let groqModelName = model
 
-    // Add -beta suffix if not present (compound -> compound-beta)
-    if (groqModelName === 'compound') {
-      groqModelName = 'compound-beta'
-    } else if (groqModelName === 'compound-mini') {
-      groqModelName = 'compound-mini-beta'
+    if (model.startsWith('groq/')) {
+      groqModelName = model.replace('groq/', '')
+
+      // Add -beta suffix for Compound models
+      if (groqModelName === 'compound') {
+        groqModelName = 'compound-beta'
+      } else if (groqModelName === 'compound-mini') {
+        groqModelName = 'compound-mini-beta'
+      }
     }
+    // Vision models use their full name as-is
 
     console.log('[Agentic] Model (transformed for Groq API):', groqModelName)
     console.log('[Agentic] Settings:', { temperature, maxTokens, topP })
@@ -265,6 +339,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                   inputTokens: 0,
                   outputTokens: 0,
                   toolCalls: null,
+                  attachments: hasAttachments ? JSON.stringify(attachments) : null,
                 },
               })
 

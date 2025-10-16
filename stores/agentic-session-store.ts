@@ -27,6 +27,7 @@ export interface AgenticMessage {
   inputTokens: number
   outputTokens: number
   toolCalls: string | null
+  attachments: string | null
   createdAt: string
 }
 

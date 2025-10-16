@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Bot, User, Brain } from 'lucide-react'
+import { Send, Loader2, Bot, User, Brain, Paperclip, X, Image as ImageIcon } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -28,8 +28,10 @@ export default function AgenticPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [attachments, setAttachments] = useState<Array<{ data: string; name: string; type: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -65,6 +67,80 @@ export default function AgenticPage() {
     }
   }, [input])
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    // Validate file count (max 5 total)
+    if (attachments.length + files.length > 5) {
+      toast.error('Maximum 5 images allowed per message')
+      return
+    }
+
+    // Process each file
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not an image file`)
+        continue
+      }
+
+      // Validate file size (4MB max for base64)
+      if (file.size > 4 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 4MB)`)
+        continue
+      }
+
+      // Convert to base64
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64Data = event.target?.result as string
+        setAttachments(prev => [
+          ...prev,
+          {
+            data: base64Data,
+            name: file.name,
+            type: file.type
+          }
+        ])
+      }
+      reader.readAsDataURL(file)
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const renderAttachments = (attachmentsJson: string | null) => {
+    if (!attachmentsJson) return null
+
+    try {
+      const parsedAttachments = JSON.parse(attachmentsJson)
+      return (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {parsedAttachments.map((att: any, idx: number) => (
+            <img
+              key={idx}
+              src={att.data}
+              alt={att.name || `Image ${idx + 1}`}
+              className="max-w-xs rounded-lg border"
+            />
+          ))}
+        </div>
+      )
+    } catch (e) {
+      return null
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading || !activeSessionId) {
@@ -75,7 +151,10 @@ export default function AgenticPage() {
     }
 
     const userMessage = input.trim()
+    const messageAttachments = [...attachments]
+
     setInput('')
+    setAttachments([])
     setIsLoading(true)
     setStreamingContent('')
 
@@ -86,6 +165,7 @@ export default function AgenticPage() {
         body: JSON.stringify({
           sessionId: activeSessionId,
           message: userMessage,
+          attachments: messageAttachments,
           settings: { temperature: 0.7, maxTokens: 8192, topP: 1.0 },
         }),
       })
@@ -212,6 +292,8 @@ export default function AgenticPage() {
                         >
                           <ReactMarkdown>{message.content}</ReactMarkdown>
                         </div>
+                        {/* Render image attachments */}
+                        {message.attachments && renderAttachments(message.attachments)}
                       </div>
 
                       {/* Cost Badge for Assistant Messages */}
@@ -270,22 +352,68 @@ export default function AgenticPage() {
         {/* Input Area */}
         <div className="border-t bg-card/50 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto px-4 py-4">
+            {/* Image Preview Area */}
+            {attachments.length > 0 && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="relative group">
+                    <img
+                      src={att.data}
+                      alt={att.name}
+                      className="h-20 w-20 object-cover rounded-lg border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(idx)}
+                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
+                      {att.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="flex gap-3">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSubmit(e)
-                  }
-                }}
-                placeholder={activeSessionId ? 'Ask anything...' : 'Create or select a session to start...'}
-                className="flex-1 resize-none rounded-lg border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[52px] max-h-[200px]"
-                rows={1}
-                disabled={isLoading || !activeSessionId}
-              />
+              <div className="flex-1 flex items-end gap-2">
+                {/* File upload button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading || !activeSessionId || attachments.length >= 5}
+                  className="p-3 rounded-lg border bg-background hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title="Upload images (max 5)"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSubmit(e)
+                    }
+                  }}
+                  placeholder={activeSessionId ? 'Ask anything...' : 'Create or select a session to start...'}
+                  className="flex-1 resize-none rounded-lg border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[52px] max-h-[200px]"
+                  rows={1}
+                  disabled={isLoading || !activeSessionId}
+                />
+              </div>
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading || !activeSessionId}

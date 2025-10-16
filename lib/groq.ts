@@ -79,12 +79,38 @@ export const GROQ_PRICING = {
     input: 0.1,
     output: 0.5,
   },
+  // Vision Models
+  'llama-3.2-11b-vision-preview': {
+    input: 0.18,
+    output: 0.18,
+  },
+  'llama-3.2-90b-vision-preview': {
+    input: 0.9,
+    output: 0.9,
+  },
+  'llava-v1.5-7b-4096-preview': {
+    input: 0,
+    output: 0,
+  },
 } as const
 
 export type GroqModelName = keyof typeof GROQ_PRICING
 
+// Vision-capable models
+const VISION_MODELS = [
+  'meta-llama/llama-4-maverick-17b-128e-instruct',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'llama-3.2-11b-vision-preview',
+  'llama-3.2-90b-vision-preview',
+  'llava-v1.5-7b-4096-preview',
+] as const
+
 export function isGroqModel(model: string): boolean {
   return model.startsWith('groq/') || model in GROQ_PRICING
+}
+
+export function isVisionModel(model: string): boolean {
+  return VISION_MODELS.includes(model as any)
 }
 
 export function calculateGroqCost(

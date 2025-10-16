@@ -69,6 +69,9 @@ model AgenticMessage {
   // Tool Usage
   toolCalls     String?  @map("tool_calls") // JSON array of tool calls
 
+  // Image/File Attachments
+  attachments   String?  // JSON array of image attachments (base64, URL, metadata)
+
   // Timestamps
   createdAt     DateTime @default(now()) @map("created_at")
 
