@@ -212,33 +212,33 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-card border rounded-lg shadow-lg">
-            {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold">New Agentic Session</h2>
+          <div className="w-full max-w-3xl max-h-[85vh] bg-card border rounded-lg shadow-lg flex flex-col">
+            {/* Header - Fixed */}
+            <div className="flex items-center justify-between p-4 border-b shrink-0">
+              <h2 className="text-lg font-semibold">New Session</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleRefreshModels}
                   disabled={isRefreshing}
-                  className="p-2 hover:bg-accent rounded-lg transition-colors disabled:opacity-50"
+                  className="p-1.5 hover:bg-accent rounded-md transition-colors disabled:opacity-50"
                   title="Refresh models from Groq API"
                 >
-                  <RefreshCw className={cn("w-5 h-5", isRefreshing && "animate-spin")} />
+                  <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
                 </button>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="p-2 hover:bg-accent rounded-lg transition-colors"
+                  className="p-1.5 hover:bg-accent rounded-md transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* Content */}
-            <div className="p-6 space-y-6">
+            {/* Content - Scrollable */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {/* Session Title */}
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-1.5">
                   Session Title (Optional)
                 </label>
                 <input
@@ -246,41 +246,38 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="e.g., Research Project, Code Review, etc."
-                  className="w-full px-4 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="e.g., Research Project, Code Review"
+                  className="w-full px-3 py-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                   autoFocus
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Leave empty to use default title
-                </p>
               </div>
 
               {/* Model Selection */}
               <div>
-                <label className="block text-sm font-medium mb-3">
+                <label className="block text-sm font-medium mb-2">
                   Select Model
                 </label>
 
                 {isLoadingModels ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
                   </div>
                 ) : models.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p className="mb-2">No models available</p>
+                  <div className="text-center py-6 text-muted-foreground">
+                    <p className="text-sm mb-2">No models available</p>
                     <button
                       onClick={handleRefreshModels}
-                      className="text-primary hover:underline"
+                      className="text-sm text-primary hover:underline"
                     >
                       Refresh models from Groq API
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {/* Agentic Models Section */}
                     <div>
-                      <h3 className="text-sm font-medium text-muted-foreground mb-2">Agentic Models</h3>
-                      <div className="grid gap-3">
+                      <h3 className="text-xs font-medium text-muted-foreground mb-2">Agentic Models</h3>
+                      <div className="grid grid-cols-2 gap-2">
                         {models.filter(m => !m.isVision).map((model) => {
                           const fallbackModel = FALLBACK_MODELS.find(f => f.id === model.id)
                           const Icon = fallbackModel?.icon || Brain
@@ -291,7 +288,7 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                               key={model.id}
                               onClick={() => setSelectedModel(model.id)}
                               className={cn(
-                                'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
+                                'flex flex-col items-center gap-2 p-3 border-2 rounded-lg text-center transition-all',
                                 'hover:border-primary/50',
                                 isSelected
                                   ? 'border-primary bg-primary/5'
@@ -305,47 +302,23 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                                   isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
                                 )}
                               >
-                                <Icon className="w-6 h-6" />
+                                <Icon className="w-5 h-5" />
                               </div>
 
                               {/* Details */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="font-semibold">{model.displayName}</h3>
-                                  {fallbackModel?.speed && (
-                                    <span
-                                      className={cn(
-                                        'text-xs px-2 py-0.5 rounded-full',
-                                        isSelected
-                                          ? 'bg-primary text-primary-foreground'
-                                          : 'bg-muted text-muted-foreground'
-                                      )}
-                                    >
-                                      {fallbackModel.speed}
-                                    </span>
-                                  )}
-                                </div>
-                                {fallbackModel?.description && (
-                                  <p className="text-sm text-muted-foreground mb-2">
-                                    {fallbackModel.description}
-                                  </p>
-                                )}
-                                {fallbackModel?.features && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {fallbackModel.features.map((feature) => (
-                                      <span
-                                        key={feature}
-                                        className="text-xs px-2 py-1 bg-muted rounded"
-                                      >
-                                        {feature}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                                {model.contextWindow && (
-                                  <p className="text-xs text-muted-foreground mt-2">
-                                    Context: {(model.contextWindow / 1000).toFixed(0)}K tokens
-                                  </p>
+                              <div className="w-full">
+                                <h4 className="font-medium text-sm mb-1 line-clamp-2">{model.displayName}</h4>
+                                {fallbackModel?.speed && (
+                                  <span
+                                    className={cn(
+                                      'inline-block text-xs px-2 py-0.5 rounded-full',
+                                      isSelected
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted text-muted-foreground'
+                                    )}
+                                  >
+                                    {fallbackModel.speed}
+                                  </span>
                                 )}
                               </div>
                             </button>
@@ -356,8 +329,8 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
 
                     {/* Vision Models Section */}
                     <div>
-                      <h3 className="text-sm font-medium text-muted-foreground mb-2">Vision Models (Image Upload Support)</h3>
-                      <div className="grid gap-3">
+                      <h3 className="text-xs font-medium text-muted-foreground mb-2">Vision Models (Image Support)</h3>
+                      <div className="grid grid-cols-2 gap-2">
                         {models.filter(m => m.isVision).map((model) => {
                           const fallbackModel = FALLBACK_MODELS.find(f => f.id === model.id)
                           const Icon = fallbackModel?.icon || Eye
@@ -368,7 +341,7 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                               key={model.id}
                               onClick={() => setSelectedModel(model.id)}
                               className={cn(
-                                'flex items-start gap-4 p-4 border-2 rounded-lg text-left transition-all',
+                                'flex flex-col items-center gap-2 p-3 border-2 rounded-lg text-center transition-all',
                                 'hover:border-primary/50',
                                 isSelected
                                   ? 'border-primary bg-primary/5'
@@ -382,17 +355,17 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                                   isSelected ? 'bg-primary/20 text-primary' : 'bg-muted'
                                 )}
                               >
-                                <Icon className="w-6 h-6" />
+                                <Icon className="w-5 h-5" />
                               </div>
 
                               {/* Details */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="font-semibold">{model.displayName}</h3>
+                              <div className="w-full">
+                                <h4 className="font-medium text-sm mb-1 line-clamp-2">{model.displayName}</h4>
+                                <div className="space-y-0.5">
                                   {fallbackModel?.speed && (
                                     <span
                                       className={cn(
-                                        'text-xs px-2 py-0.5 rounded-full',
+                                        'inline-block text-xs px-2 py-0.5 rounded-full',
                                         isSelected
                                           ? 'bg-primary text-primary-foreground'
                                           : 'bg-muted text-muted-foreground'
@@ -401,35 +374,13 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
                                       {fallbackModel.speed}
                                     </span>
                                   )}
-                                </div>
-                                {fallbackModel?.description && (
-                                  <p className="text-sm text-muted-foreground mb-2">
-                                    {fallbackModel.description}
-                                  </p>
-                                )}
-                                {fallbackModel?.features && (
-                                  <div className="flex flex-wrap gap-2 mb-2">
-                                    {fallbackModel.features.map((feature) => (
-                                      <span
-                                        key={feature}
-                                        className="text-xs px-2 py-1 bg-muted rounded"
-                                      >
-                                        {feature}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                  {model.inputPricing > 0 || model.outputPricing > 0
-                                    ? `$${model.inputPricing} / $${model.outputPricing} per 1M tokens`
-                                    : 'Free'
-                                  }
-                                </p>
-                                {model.contextWindow && (
                                   <p className="text-xs text-muted-foreground">
-                                    Context: {(model.contextWindow / 1000).toFixed(0)}K tokens
+                                    {model.inputPricing > 0 || model.outputPricing > 0
+                                      ? `$${model.inputPricing}/$${model.outputPricing}`
+                                      : 'Free'
+                                    }
                                   </p>
-                                )}
+                                </div>
                               </div>
                             </button>
                           )
@@ -441,19 +392,19 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t">
+            {/* Footer - Fixed */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t shrink-0">
               <button
                 onClick={() => setShowModal(false)}
                 disabled={isCreating}
-                className="px-4 py-2 border rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
                 disabled={isCreating}
-                className="flex items-center gap-2 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {isCreating ? (
                   <>
