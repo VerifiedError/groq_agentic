@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import { cn } from '@/lib/utils'
+import { isVisionModel } from '@/lib/groq-utils'
 import useAgenticSessionStore from '@/stores/agentic-session-store'
 import { SessionSidebar } from '@/components/agentic/session-sidebar'
 import { SessionHeader } from '@/components/agentic/session-header'
 import { MessageCostBadge } from '@/components/agentic/message-cost-badge'
+import { VisionMessage } from '@/components/agentic/vision-message'
 
 export default function AgenticPage() {
   const { data: session, status } = useSession()
@@ -23,6 +25,7 @@ export default function AgenticPage() {
     fetchSessions,
     fetchSessionMessages,
     setActiveSession,
+    getActiveSession,
   } = useAgenticSessionStore()
 
   const [input, setInput] = useState('')
@@ -290,7 +293,11 @@ export default function AgenticPage() {
                             message.role === 'user' && 'prose-invert'
                           )}
                         >
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                          {message.role === 'assistant' && getActiveSession() && isVisionModel(getActiveSession()!.model) ? (
+                            <VisionMessage content={message.content} />
+                          ) : (
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          )}
                         </div>
                         {/* Render image attachments */}
                         {message.attachments && renderAttachments(message.attachments)}
@@ -326,7 +333,11 @@ export default function AgenticPage() {
                     </div>
                     <div className="max-w-[80%] rounded-lg p-4 bg-card border">
                       <div className="prose dark:prose-invert max-w-none">
-                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                        {getActiveSession() && isVisionModel(getActiveSession()!.model) ? (
+                          <VisionMessage content={streamingContent} />
+                        ) : (
+                          <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
