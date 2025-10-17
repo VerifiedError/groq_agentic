@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Play, Trash2, Copy, Loader2, Settings2 } from 'lucide-react'
+import { Play, Trash2, Copy, Loader2, Settings2, ChevronDown, ChevronUp, BarChart3, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 
@@ -20,6 +20,21 @@ interface Model {
 interface Message {
   role: 'system' | 'user' | 'assistant'
   content: string
+}
+
+interface RequestLog {
+  id: string
+  timestamp: Date
+  model: string
+  modelDisplayName: string
+  prompt: string
+  promptPreview: string
+  inputTokens: number
+  outputTokens: number
+  cachedTokens: number
+  totalTokens: number
+  cost: number
+  cacheHitRate: number | null
 }
 
 export default function PlaygroundPage() {
@@ -47,6 +62,39 @@ export default function PlaygroundPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [usage, setUsage] = useState<any>(null)
   const [cost, setCost] = useState<number | null>(null)
+
+  // Request history
+  const [requestHistory, setRequestHistory] = useState<RequestLog[]>([])
+  const [showHistory, setShowHistory] = useState(true)
+
+  // Load request history from localStorage
+  useEffect(() => {
+    try {
+      const savedHistory = localStorage.getItem('playground-request-history')
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory)
+        // Convert timestamp strings back to Date objects
+        const history = parsed.map((log: any) => ({
+          ...log,
+          timestamp: new Date(log.timestamp)
+        }))
+        setRequestHistory(history)
+      }
+    } catch (error) {
+      console.error('Failed to load request history:', error)
+    }
+  }, [])
+
+  // Save request history to localStorage
+  useEffect(() => {
+    if (requestHistory.length > 0) {
+      try {
+        localStorage.setItem('playground-request-history', JSON.stringify(requestHistory))
+      } catch (error) {
+        console.error('Failed to save request history:', error)
+      }
+    }
+  }, [requestHistory])
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -166,7 +214,37 @@ export default function PlaygroundPage() {
                   setUsage(data.usage)
                 }
                 if (data.cost !== undefined) {
-                  setCost(typeof data.cost === 'number' ? data.cost : parseFloat(data.cost) || 0)
+                  const finalCost = typeof data.cost === 'number' ? data.cost : parseFloat(data.cost) || 0
+                  setCost(finalCost)
+
+                  // Save to request history
+                  if (data.usage) {
+                    const promptPreview = userPrompt.trim().substring(0, 100) + (userPrompt.trim().length > 100 ? '...' : '')
+                    const cachedTokens = data.usage.cached_tokens || 0
+                    const inputTokens = data.usage.prompt_tokens || 0
+                    const cacheHitRate = cachedTokens > 0 && inputTokens > 0
+                      ? (cachedTokens / inputTokens) * 100
+                      : null
+
+                    const selectedModelObj = models.find(m => m.id === selectedModel)
+
+                    const newLog: RequestLog = {
+                      id: Date.now().toString(),
+                      timestamp: new Date(),
+                      model: selectedModel,
+                      modelDisplayName: selectedModelObj?.displayName || selectedModel,
+                      prompt: userPrompt.trim(),
+                      promptPreview,
+                      inputTokens: data.usage.prompt_tokens || 0,
+                      outputTokens: data.usage.completion_tokens || 0,
+                      cachedTokens,
+                      totalTokens: data.usage.total_tokens || 0,
+                      cost: finalCost,
+                      cacheHitRate,
+                    }
+
+                    setRequestHistory(prev => [newLog, ...prev].slice(0, 50)) // Keep last 50 requests
+                  }
                 }
               }
             } catch (e) {
@@ -196,6 +274,24 @@ export default function PlaygroundPage() {
     navigator.clipboard.writeText(output)
     toast.success('Output copied to clipboard')
   }
+
+  const handleClearHistory = () => {
+    setRequestHistory([])
+    localStorage.removeItem('playground-request-history')
+    toast.success('Request history cleared')
+  }
+
+  // Calculate overall statistics
+  const overallStats = requestHistory.length > 0 ? {
+    totalRequests: requestHistory.length,
+    totalInputTokens: requestHistory.reduce((sum, log) => sum + log.inputTokens, 0),
+    totalOutputTokens: requestHistory.reduce((sum, log) => sum + log.outputTokens, 0),
+    totalCachedTokens: requestHistory.reduce((sum, log) => sum + log.cachedTokens, 0),
+    totalCost: requestHistory.reduce((sum, log) => sum + log.cost, 0),
+    avgCacheHitRate: requestHistory.filter(log => log.cacheHitRate !== null).length > 0
+      ? requestHistory.filter(log => log.cacheHitRate !== null).reduce((sum, log) => sum + (log.cacheHitRate || 0), 0) / requestHistory.filter(log => log.cacheHitRate !== null).length
+      : null
+  } : null
 
   if (status === 'loading' || isLoadingModels) {
     return (
@@ -243,6 +339,54 @@ export default function PlaygroundPage() {
             </div>
           </div>
         </div>
+
+        {/* Overall Usage Statistics */}
+        {overallStats && (
+          <div className="container mx-auto px-4 pt-2 pb-1">
+            <div className="flex items-center justify-between px-3 py-2 bg-muted/30 rounded-md border text-xs">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1.5">
+                  <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-muted-foreground">Total:</span>
+                  <span className="font-medium">{overallStats.totalRequests} requests</span>
+                </div>
+                <div className="text-muted-foreground">|</div>
+                <div>
+                  <span className="text-muted-foreground">Tokens:</span>
+                  <span className="ml-1.5 font-medium">{overallStats.totalInputTokens.toLocaleString()}↑ / {overallStats.totalOutputTokens.toLocaleString()}↓</span>
+                  {overallStats.totalCachedTokens > 0 && (
+                    <span className="ml-1.5 text-green-600 dark:text-green-400 font-medium">
+                      ({overallStats.totalCachedTokens.toLocaleString()} cached)
+                    </span>
+                  )}
+                </div>
+                <div className="text-muted-foreground">|</div>
+                <div>
+                  <span className="text-muted-foreground">Cost:</span>
+                  <span className="ml-1.5 font-medium text-primary">${overallStats.totalCost.toFixed(4)}</span>
+                </div>
+                {overallStats.avgCacheHitRate !== null && (
+                  <>
+                    <div className="text-muted-foreground">|</div>
+                    <div>
+                      <span className="text-muted-foreground">Avg Cache:</span>
+                      <span className="ml-1.5 font-medium text-green-600 dark:text-green-400">
+                        {overallStats.avgCacheHitRate.toFixed(1)}%
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={handleClearHistory}
+                className="text-xs px-2 py-1 hover:bg-accent rounded transition-colors text-muted-foreground hover:text-foreground"
+                title="Clear history"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -469,6 +613,73 @@ export default function PlaygroundPage() {
               )}
             </div>
           </div>
+
+          {/* Request History */}
+          {requestHistory.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors"
+                >
+                  <Clock className="w-4 h-4" />
+                  Request History ({requestHistory.length})
+                  {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {showHistory && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="max-h-64 overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/50 sticky top-0">
+                        <tr className="border-b">
+                          <th className="text-left p-2 font-medium">Time</th>
+                          <th className="text-left p-2 font-medium">Model</th>
+                          <th className="text-left p-2 font-medium">Prompt</th>
+                          <th className="text-right p-2 font-medium">In</th>
+                          <th className="text-right p-2 font-medium">Out</th>
+                          <th className="text-right p-2 font-medium">Cached</th>
+                          <th className="text-right p-2 font-medium">Cache %</th>
+                          <th className="text-right p-2 font-medium">Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {requestHistory.map((log) => (
+                          <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
+                            <td className="p-2 text-muted-foreground whitespace-nowrap">
+                              {log.timestamp.toLocaleTimeString()}
+                            </td>
+                            <td className="p-2 text-muted-foreground whitespace-nowrap">
+                              {log.modelDisplayName}
+                            </td>
+                            <td className="p-2 max-w-xs truncate" title={log.prompt}>
+                              {log.promptPreview}
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                              {log.inputTokens.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right font-mono">
+                              {log.outputTokens.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right font-mono text-green-600 dark:text-green-400">
+                              {log.cachedTokens > 0 ? log.cachedTokens.toLocaleString() : '-'}
+                            </td>
+                            <td className="p-2 text-right font-mono text-green-600 dark:text-green-400">
+                              {log.cacheHitRate !== null ? `${log.cacheHitRate.toFixed(1)}%` : '-'}
+                            </td>
+                            <td className="p-2 text-right font-mono text-primary">
+                              ${log.cost.toFixed(4)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
