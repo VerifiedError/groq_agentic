@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Groq from 'groq-sdk'
-import { GROQ_PRICING, calculateCost } from '@/lib/groq'
+import { GROQ_PRICING, calculateGroqCost } from '@/lib/groq'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
           // Calculate cost if we have usage data
           let cost = 0
           if (usage) {
-            cost = calculateCost(
+            cost = calculateGroqCost(
               model,
               usage.prompt_tokens || 0,
               usage.completion_tokens || 0
