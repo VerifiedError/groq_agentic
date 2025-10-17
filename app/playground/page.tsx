@@ -26,7 +26,9 @@ import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import { ArtifactViewer } from '@/components/playground/artifact-viewer'
 import { ArtifactButton } from '@/components/playground/artifact-button'
+import { ArtifactCard } from '@/components/playground/artifact-card'
 import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
+import { extractArtifactsFromResponse } from '@/lib/code-detector'
 
 interface Model {
   id: string
@@ -53,6 +55,7 @@ interface Message {
   cost?: number
   timestamp: Date
   responses?: ModelResponse[] // For multi-model assistant messages
+  artifactIds?: string[] // Associated artifact IDs
 }
 
 interface Artifact {
@@ -551,6 +554,52 @@ export default function PlaygroundChatPage() {
         }))
       }
 
+      // Auto-detect code and create artifacts
+      const createdArtifactIds: string[] = []
+      const fullContent = Object.values(modelResponses).map(r => r.content).join('\n\n')
+      const detectedArtifacts = extractArtifactsFromResponse(fullContent)
+
+      if (detectedArtifacts.length > 0) {
+        const newArtifacts: Artifact[] = detectedArtifacts.map((detected) => ({
+          id: `artifact-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          type: detected.type,
+          title: detected.title,
+          description: detected.description,
+          files: detected.files,
+          dependencies: detected.dependencies,
+          createdAt: new Date()
+        }))
+
+        // Add artifacts to state
+        setArtifacts(prev => [...prev, ...newArtifacts])
+
+        // Track artifact IDs
+        createdArtifactIds.push(...newArtifacts.map(a => a.id))
+
+        // Save to session
+        if (activeChatId) {
+          setChatSessions(prev =>
+            prev.map(chat =>
+              chat.id === activeChatId
+                ? { ...chat, artifacts: [...chat.artifacts, ...newArtifacts], updatedAt: new Date() }
+                : chat
+            )
+          )
+        }
+
+        // Show toast notification
+        if (newArtifacts.length === 1) {
+          toast.success(`Artifact detected: "${newArtifacts[0].title}"`)
+        } else {
+          toast.success(`${newArtifacts.length} artifacts detected`)
+        }
+      }
+
+      // Add artifact IDs to assistant message
+      if (createdArtifactIds.length > 0) {
+        assistantMessage.artifactIds = createdArtifactIds
+      }
+
       setMessages(prev => [...prev, assistantMessage])
       setStreamingContent({})
 
@@ -899,21 +948,57 @@ export default function PlaygroundChatPage() {
                         )
                       })}
                     </div>
+
+                    {/* Artifact Cards */}
+                    {message.artifactIds && message.artifactIds.length > 0 && (
+                      <div className="space-y-2">
+                        {message.artifactIds.map((artifactId) => {
+                          const artifact = artifacts.find(a => a.id === artifactId)
+                          if (!artifact) return null
+                          return (
+                            <ArtifactCard
+                              key={artifactId}
+                              artifact={artifact}
+                              onOpen={() => setActiveArtifactId(artifactId)}
+                            />
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <div className="flex gap-3 justify-start">
-                    <div className="rounded-lg p-4 max-w-[80%] bg-card border">
-                      <div className="prose dark:prose-invert max-w-none">
-                        <ReactMarkdown>
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
-                      {message.cost !== undefined && message.cost > 0 && (
-                        <div className="mt-2 text-xs opacity-70">
-                          Cost: ${message.cost.toFixed(6)}
+                  <div className="space-y-2">
+                    <div className="flex gap-3 justify-start">
+                      <div className="rounded-lg p-4 max-w-[80%] bg-card border">
+                        <div className="prose dark:prose-invert max-w-none">
+                          <ReactMarkdown>
+                            {message.content}
+                          </ReactMarkdown>
                         </div>
-                      )}
+                        {message.cost !== undefined && message.cost > 0 && (
+                          <div className="mt-2 text-xs opacity-70">
+                            Cost: ${message.cost.toFixed(6)}
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Artifact Cards */}
+                    {message.artifactIds && message.artifactIds.length > 0 && (
+                      <div className="space-y-2">
+                        {message.artifactIds.map((artifactId) => {
+                          const artifact = artifacts.find(a => a.id === artifactId)
+                          if (!artifact) return null
+                          return (
+                            <ArtifactCard
+                              key={artifactId}
+                              artifact={artifact}
+                              onOpen={() => setActiveArtifactId(artifactId)}
+                            />
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
