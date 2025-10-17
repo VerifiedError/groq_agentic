@@ -72,11 +72,12 @@ export async function POST(request: NextRequest) {
           // Calculate cost if we have usage data
           let cost = 0
           if (usage) {
-            cost = calculateGroqCost(
+            const costResult = calculateGroqCost(
               model,
               usage.prompt_tokens || 0,
               usage.completion_tokens || 0
             )
+            cost = costResult.totalCost
           }
 
           // Send final message with usage and cost
