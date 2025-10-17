@@ -70,8 +70,8 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
-# Copy MCP server files (if they exist)
-COPY --from=builder /app/mcp_servers ./mcp_servers 2>/dev/null || echo "MCP servers not found, skipping..."
+# Copy MCP server files
+COPY --from=builder /app/mcp_servers ./mcp_servers
 
 # Copy package.json for Next.js to read dependencies metadata
 COPY --from=builder /app/package.json ./package.json
