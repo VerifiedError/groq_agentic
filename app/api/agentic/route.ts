@@ -366,17 +366,32 @@ Be concise, direct, and helpful. Format responses in markdown.`
                 },
               })
 
+              // Extract <think> tags from content (for Qwen models) and clean the response
+              let cleanResponse = fullResponse
+              let finalReasoning = fullReasoning
+
+              if (!fullReasoning && fullResponse.includes('<think>')) {
+                // Import extractThinkTags function
+                const { extractThinkTags } = await import('@/lib/reasoning-parser')
+                const { reasoning: extractedReasoning, cleanContent } = extractThinkTags(fullResponse)
+                if (extractedReasoning) {
+                  finalReasoning = extractedReasoning
+                  cleanResponse = cleanContent
+                  console.log('[Agentic] Extracted reasoning from <think> tags')
+                }
+              }
+
               // Save assistant response to AgenticMessage (will update with tool costs later)
               const assistantMessage = await prisma.agenticMessage.create({
                 data: {
                   sessionId,
                   role: 'assistant',
-                  content: fullResponse,
+                  content: cleanResponse,
                   cost: totalMessageCost,
                   inputTokens: promptTokens,
                   outputTokens: completionTokens,
                   cachedTokens: cachedTokens,
-                  reasoning: fullReasoning || null, // Save reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
+                  reasoning: finalReasoning || null, // Save reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
                   toolCalls: executedTools.length > 0 ? JSON.stringify({
                     executed_tools: executedTools,
                     usages: toolUsages,

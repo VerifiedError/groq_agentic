@@ -32,7 +32,8 @@ import { ArtifactViewer } from '@/components/playground/artifact-viewer'
 import { ArtifactButton } from '@/components/playground/artifact-button'
 import { ArtifactCard } from '@/components/playground/artifact-card'
 import { WorkspaceIDE } from '@/components/playground/workspace-ide'
-import { ThinkingDisplay, extractThinking } from '@/components/playground/thinking-display'
+import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
+import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsPopover } from '@/components/playground/model-settings-popover'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
@@ -788,7 +789,7 @@ export default function PlaygroundChatPage() {
 
       // Extract thinking from content (for models using <think> tags)
       const fullContent = Object.values(modelResponses).map(r => r.content).join('\n\n---\n\n')
-      const { thinking: contentThinking, cleanContent } = extractThinking(fullContent)
+      const { reasoning: contentThinking, cleanContent } = extractThinkTags(fullContent)
 
       // Combine reasoning field and extracted thinking
       const combinedReasoning = [...reasoningParts, contentThinking].filter(Boolean).join('\n\n---\n\n')
@@ -1447,7 +1448,7 @@ export default function PlaygroundChatPage() {
                       <div className="rounded-lg p-4 max-w-[80%] bg-card border">
                         {/* Thinking Display */}
                         {message.thinking && (
-                          <ThinkingDisplay thinking={message.thinking} className="mb-3" />
+                          <ReasoningDisplay reasoning={message.thinking} className="mb-3" />
                         )}
 
                         {/* Message Content */}

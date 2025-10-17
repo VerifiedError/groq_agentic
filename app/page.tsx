@@ -13,7 +13,8 @@ import { SessionSidebar } from '@/components/agentic/session-sidebar'
 import { SessionHeader } from '@/components/agentic/session-header'
 import { MessageCostBadge } from '@/components/agentic/message-cost-badge'
 import { VisionMessage } from '@/components/agentic/vision-message'
-import { ThinkingDisplay, extractThinking } from '@/components/playground/thinking-display'
+import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
+import { extractThinkTags } from '@/lib/reasoning-parser'
 
 export default function AgenticPage() {
   const { data: session, status } = useSession()
@@ -201,10 +202,20 @@ export default function AgenticPage() {
 
                 if (data.content) {
                   accumulatedContent += data.content
-                  setStreamingContent(accumulatedContent)
+
+                  // Continuously extract <think> tags from content (for Qwen models)
+                  const { reasoning: extractedReasoning, cleanContent } = extractThinkTags(accumulatedContent)
+
+                  // If reasoning found in content, use it
+                  if (extractedReasoning && !accumulatedReasoning) {
+                    setStreamingReasoning(extractedReasoning)
+                    setStreamingContent(cleanContent)
+                  } else {
+                    setStreamingContent(accumulatedContent)
+                  }
                 }
 
-                // Capture reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
+                // Capture reasoning from models like DeepSeek-R1, GPT-OSS (separate delta.reasoning field)
                 if (data.reasoning) {
                   accumulatedReasoning += data.reasoning
                   setStreamingReasoning(accumulatedReasoning)
@@ -213,10 +224,11 @@ export default function AgenticPage() {
                 if (data.done) {
                   console.log('[Agentic Page] Stream completed with usage:', data.usage)
 
-                  // Extract <think> tags from content (for Qwen models)
-                  const { thinking: extractedThinking } = extractThinking(accumulatedContent)
-                  if (extractedThinking && !accumulatedReasoning) {
-                    setStreamingReasoning(extractedThinking)
+                  // Final extraction of <think> tags from content (for Qwen models)
+                  const { reasoning: extractedReasoning, cleanContent } = extractThinkTags(accumulatedContent)
+                  if (extractedReasoning && !accumulatedReasoning) {
+                    setStreamingReasoning(extractedReasoning)
+                    setStreamingContent(cleanContent)
                   }
 
                   // Reload messages to get the saved messages with cost data
@@ -307,7 +319,7 @@ export default function AgenticPage() {
                       >
                         {/* Thinking/Reasoning Display (for assistant messages with reasoning) */}
                         {message.role === 'assistant' && message.reasoning && (
-                          <ThinkingDisplay thinking={message.reasoning} className="mb-3" />
+                          <ReasoningDisplay reasoning={message.reasoning} className="mb-3" />
                         )}
 
                         <div
@@ -358,7 +370,12 @@ export default function AgenticPage() {
                     <div className="max-w-[80%] rounded-lg p-4 bg-card border">
                       {/* Thinking/Reasoning Display (streaming) */}
                       {streamingReasoning && (
-                        <ThinkingDisplay thinking={streamingReasoning} className="mb-3" defaultExpanded />
+                        <ReasoningDisplay
+                          reasoning={streamingReasoning}
+                          isStreaming={true}
+                          className="mb-3"
+                          defaultExpanded
+                        />
                       )}
 
                       <div className="prose dark:prose-invert max-w-none">
