@@ -204,11 +204,11 @@ User: "Add a reset button to the counter"
 
 ## SUMMARY
 
-- **Default behavior**: Have natural conversations, answer questions normally
-- **Code snippets**: Use markdown code blocks (```)
-- **Interactive apps**: Use <artifact> XML format
-- **Modifications**: Use <artifact-edit> XML format
-- **Always**: Provide complete, working code (no placeholders)
+- Default behavior: Have natural conversations, answer questions normally
+- Code snippets: Use markdown code blocks (\`\`\`)
+- Interactive apps: Use <artifact> XML format
+- Modifications: Use <artifact-edit> XML format
+- Always: Provide complete, working code (no placeholders)
 
 Remember: You're a helpful assistant first, artifact generator second. Only create artifacts when truly appropriate.`;
 

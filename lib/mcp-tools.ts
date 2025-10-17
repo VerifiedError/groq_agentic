@@ -106,6 +106,23 @@ export const MCP_TOOLS = [
         }
       }
     }
+  },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'create_directory',
+      description: 'Create a new directory in the artifact workspace',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: {
+            type: 'string',
+            description: 'Relative path to the new directory'
+          }
+        },
+        required: ['path']
+      }
+    }
   }
 ]
 
