@@ -21,7 +21,9 @@ import {
   Search,
   MoreVertical,
   Loader2,
-  Star
+  Star,
+  Sliders,
+  MoreHorizontal
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
@@ -30,6 +32,8 @@ import { ArtifactButton } from '@/components/playground/artifact-button'
 import { ArtifactCard } from '@/components/playground/artifact-card'
 import { WorkspaceIDE } from '@/components/playground/workspace-ide'
 import { ThinkingDisplay, extractThinking } from '@/components/playground/thinking-display'
+import { ModelSettingsPopover } from '@/components/playground/model-settings-popover'
+import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
 import { extractArtifactsFromResponse } from '@/lib/code-detector'
 import { parseArtifactResponse } from '@/lib/artifact-parser'
@@ -105,6 +109,19 @@ export default function PlaygroundChatPage() {
   const [editingModelIndex, setEditingModelIndex] = useState<number | null>(null)
   const [favoriteModels, setFavoriteModels] = useState<string[]>([])
   const [isTogglingFavorite, setIsTogglingFavorite] = useState<string | null>(null)
+
+  // Model Settings
+  const [modelSettings, setModelSettings] = useState<Record<string, {
+    enabled: boolean
+    reasoning: boolean
+    temperature: number
+    maxTokens: number
+    topP: number
+    systemPrompt: string
+    label: string
+  }>>({})
+  const [openSettingsPopover, setOpenSettingsPopover] = useState<string | null>(null)
+  const [openSettingsModal, setOpenSettingsModal] = useState<string | null>(null)
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
@@ -324,6 +341,67 @@ export default function PlaygroundChatPage() {
     } finally {
       setIsTogglingFavorite(null)
     }
+  }
+
+  // Initialize default settings for a model
+  const getDefaultModelSettings = (modelId: string) => ({
+    enabled: true,
+    reasoning: false,
+    temperature: 1,
+    maxTokens: 1024,
+    topP: 1,
+    systemPrompt: '',
+    label: models.find(m => m.id === modelId)?.displayName || modelId
+  })
+
+  // Get settings for a model (or return defaults)
+  const getModelSettings = (modelId: string) => {
+    if (!modelSettings[modelId]) {
+      const defaults = getDefaultModelSettings(modelId)
+      setModelSettings(prev => ({ ...prev, [modelId]: defaults }))
+      return defaults
+    }
+    return modelSettings[modelId]
+  }
+
+  // Update settings for a specific model
+  const updateModelSettings = (modelId: string, settings: Partial<typeof modelSettings[string]>) => {
+    setModelSettings(prev => ({
+      ...prev,
+      [modelId]: { ...getModelSettings(modelId), ...settings }
+    }))
+  }
+
+  // Apply settings to all selected models
+  const applySettingsToAll = (settings: Partial<typeof modelSettings[string]>) => {
+    const updates: typeof modelSettings = {}
+    selectedModels.forEach(modelId => {
+      updates[modelId] = { ...getModelSettings(modelId), ...settings }
+    })
+    setModelSettings(prev => ({ ...prev, ...updates }))
+    toast.success('Settings applied to all models')
+  }
+
+  // Reset settings for a model
+  const resetModelSettings = (modelId: string) => {
+    setModelSettings(prev => ({
+      ...prev,
+      [modelId]: getDefaultModelSettings(modelId)
+    }))
+    toast.success('Settings reset to defaults')
+  }
+
+  // Duplicate a model
+  const duplicateModel = (modelId: string) => {
+    setSelectedModels(prev => [...prev, modelId])
+    // Copy settings to the new instance
+    const settings = getModelSettings(modelId)
+    const newKey = `${modelId}-${Date.now()}`
+    setModelSettings(prev => ({
+      ...prev,
+      [newKey]: { ...settings, label: `${settings.label} (Copy)` }
+    }))
+    toast.success('Model duplicated')
   }
 
   // Filter and sort models based on search query and favorites
@@ -1035,8 +1113,11 @@ export default function PlaygroundChatPage() {
           <div ref={modelPillsRef} className="flex flex-wrap items-center gap-2">
             {selectedModels.map((modelId, index) => {
               const model = models.find(m => m.id === modelId)
+              const settings = getModelSettings(modelId)
+              const showPopover = openSettingsPopover === modelId
+
               return (
-                <div key={modelId} className="duration-200 animate-in fade-in">
+                <div key={`${modelId}-${index}`} className="duration-200 animate-in fade-in relative">
                   <div
                     onClick={() => {
                       setEditingModelIndex(index)
@@ -1046,19 +1127,67 @@ export default function PlaygroundChatPage() {
                     className="relative flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm px-3 cursor-pointer"
                   >
                     <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {model?.displayName || modelId}
+                      {settings.label || model?.displayName || modelId}
                     </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedModels(prev => prev.filter(id => id !== modelId))
-                      }}
-                      className="inline-flex items-center justify-center rounded-md transition-colors h-5 w-5 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 text-neutral-400 dark:text-neutral-500"
-                      aria-label="Remove model"
-                    >
-                      <Plus className="h-3.5 w-3.5 rotate-45" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {/* Settings Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenSettingsPopover(showPopover ? null : modelId)
+                        }}
+                        className="inline-flex items-center justify-center rounded-md transition-colors h-6 w-6 hover:bg-slate-100 dark:hover:bg-slate-800 text-neutral-400 dark:text-neutral-500 hover:text-neutral-600 dark:hover:text-neutral-300 group"
+                        aria-label="Model settings"
+                      >
+                        <MoreHorizontal className="h-4 w-4 group-hover:hidden" />
+                        <Sliders className="h-4 w-4 hidden group-hover:block" />
+                      </button>
+                      {/* Remove Button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedModels(prev => prev.filter(id => id !== modelId))
+                        }}
+                        className="inline-flex items-center justify-center rounded-md transition-colors h-5 w-5 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 text-neutral-400 dark:text-neutral-500"
+                        aria-label="Remove model"
+                      >
+                        <Plus className="h-3.5 w-3.5 rotate-45" />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Settings Popover */}
+                  {showPopover && (
+                    <div className="absolute top-full mt-1 right-0 z-50">
+                      <ModelSettingsPopover
+                        modelId={modelId}
+                        modelName={settings.label || model?.displayName || modelId}
+                        settings={{
+                          enabled: settings.enabled,
+                          reasoning: settings.reasoning
+                        }}
+                        onToggleEnabled={() => {
+                          updateModelSettings(modelId, { enabled: !settings.enabled })
+                        }}
+                        onToggleReasoning={() => {
+                          updateModelSettings(modelId, { reasoning: !settings.reasoning })
+                        }}
+                        onDuplicate={() => {
+                          duplicateModel(modelId)
+                          setOpenSettingsPopover(null)
+                        }}
+                        onAdvancedSettings={() => {
+                          setOpenSettingsModal(modelId)
+                          setOpenSettingsPopover(null)
+                        }}
+                        onRemove={() => {
+                          setSelectedModels(prev => prev.filter(id => id !== modelId))
+                          setOpenSettingsPopover(null)
+                        }}
+                        onClose={() => setOpenSettingsPopover(null)}
+                      />
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -1746,6 +1875,30 @@ export default function PlaygroundChatPage() {
           request={workspaceRequest}
           onClose={() => setShowWorkspaceBuilder(false)}
           model={selectedModels[0]}
+        />
+      )}
+
+      {/* Model Settings Modal */}
+      {openSettingsModal && (
+        <ModelSettingsModal
+          modelId={openSettingsModal}
+          models={models}
+          settings={getModelSettings(openSettingsModal)}
+          onSave={(newSettings) => {
+            updateModelSettings(openSettingsModal, newSettings)
+            toast.success('Settings saved')
+          }}
+          onApplyToAll={(newSettings) => {
+            applySettingsToAll(newSettings)
+          }}
+          onReset={() => {
+            resetModelSettings(openSettingsModal)
+          }}
+          onRemove={() => {
+            setSelectedModels(prev => prev.filter(id => id !== openSettingsModal))
+            setOpenSettingsModal(null)
+          }}
+          onClose={() => setOpenSettingsModal(null)}
         />
       )}
     </>
