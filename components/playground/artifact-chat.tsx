@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Loader2, Sparkles, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
+import { ArtifactChangesPreview } from './artifact-changes-preview'
 
 interface ArtifactChatMessage {
   id: string
@@ -33,6 +34,8 @@ export function ArtifactChat({
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [pendingChanges, setPendingChanges] = useState<Record<string, string> | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -136,8 +139,8 @@ export function ArtifactChat({
 
                   // Check if there are file changes to apply
                   if (data.fileChanges && onApplyChanges) {
-                    // TODO: Show preview and apply changes
-                    console.log('File changes detected:', data.fileChanges)
+                    setPendingChanges(data.fileChanges)
+                    setShowPreview(true)
                   }
                 }
               } catch (e) {
@@ -160,6 +163,29 @@ export function ArtifactChat({
       setIsGenerating(false)
     }
   }
+
+  const handleApplyChanges = () => {
+    if (pendingChanges && onApplyChanges) {
+      onApplyChanges(pendingChanges)
+      setPendingChanges(null)
+      setShowPreview(false)
+    }
+  }
+
+  const handleRejectChanges = () => {
+    setPendingChanges(null)
+    setShowPreview(false)
+  }
+
+  // Convert pending changes to FileChange format for preview
+  const fileChanges = pendingChanges
+    ? Object.entries(pendingChanges).map(([path, newContent]) => ({
+        path,
+        oldContent: currentFiles[path] || '',
+        newContent,
+        action: (currentFiles[path] ? 'modified' : 'created') as 'modified' | 'created',
+      }))
+    : []
 
   if (!isOpen) return null
 
@@ -274,6 +300,14 @@ export function ArtifactChat({
           Press Enter to send, Shift+Enter for new line
         </p>
       </div>
+
+      {/* Changes Preview Modal */}
+      <ArtifactChangesPreview
+        changes={fileChanges}
+        onApply={handleApplyChanges}
+        onReject={handleRejectChanges}
+        isOpen={showPreview}
+      />
     </div>
   )
 }

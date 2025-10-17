@@ -21,10 +21,12 @@ import {
   Eye,
   Terminal,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ArtifactType } from '@/lib/artifact-templates'
+import { ArtifactChat } from './artifact-chat'
 
 interface ArtifactViewerProps {
   artifact: {
@@ -50,6 +52,8 @@ export function ArtifactViewer({
   const [showFileTree, setShowFileTree] = useState(true)
   const [viewMode, setViewMode] = useState<'split' | 'code' | 'preview'>('split')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showChat, setShowChat] = useState(false)
+  const [currentFiles, setCurrentFiles] = useState(artifact.files)
 
   // Determine Sandpack template based on artifact type
   const getTemplate = () => {
@@ -67,8 +71,8 @@ export function ArtifactViewer({
     }
   }
 
-  // Prepare files for Sandpack
-  const sandpackFiles = { ...artifact.files }
+  // Prepare files for Sandpack (use currentFiles to reflect chat changes)
+  const sandpackFiles = { ...currentFiles }
 
   // Prepare custom setup with dependencies
   const customSetup = artifact.dependencies
@@ -109,6 +113,12 @@ export function ArtifactViewer({
       onDelete?.()
       toast.success('Artifact deleted')
     }
+  }
+
+  const handleApplyChanges = (newFiles: Record<string, string>) => {
+    setCurrentFiles(newFiles)
+    onSave?.(newFiles)
+    toast.success('Changes applied successfully')
   }
 
   return (
@@ -211,6 +221,20 @@ export function ArtifactViewer({
                 d="M3 7h18M3 12h18M3 17h18"
               />
             </svg>
+          </button>
+
+          {/* AI Chat Toggle */}
+          <button
+            onClick={() => setShowChat(!showChat)}
+            className={cn(
+              'p-2 rounded-lg border transition-colors',
+              showChat
+                ? 'bg-primary text-primary-foreground'
+                : 'hover:bg-accent'
+            )}
+            title="Toggle AI chat"
+          >
+            <MessageSquare className="h-4 w-4" />
           </button>
 
           {/* Fullscreen */}
@@ -333,6 +357,20 @@ export function ArtifactViewer({
           </SandpackLayout>
         </SandpackProvider>
       </div>
+
+      {/* AI Chat Interface */}
+      {showChat && artifact.id && (
+        <div className="fixed right-0 top-16 bottom-0 w-96 z-50">
+          <ArtifactChat
+            artifactId={artifact.id}
+            artifactTitle={artifact.title}
+            currentFiles={currentFiles}
+            onApplyChanges={handleApplyChanges}
+            onClose={() => setShowChat(false)}
+            isOpen={showChat}
+          />
+        </div>
+      )}
     </div>
   )
 }
