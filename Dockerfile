@@ -1,9 +1,9 @@
-# Multi-stage Dockerfile for Next.js 15 with Turbopack
+# Multi-stage Dockerfile for Next.js 15 with Turbopack + Python MCP
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
 
-# Install dependencies for native modules
-RUN apk add --no-cache libc6-compat
+# Install dependencies for native modules and Python
+RUN apk add --no-cache libc6-compat python3 py3-pip
 
 WORKDIR /app
 
@@ -16,6 +16,9 @@ RUN npm ci
 # Stage 2: Builder
 FROM node:20-alpine AS builder
 
+# Install Python and pip
+RUN apk add --no-cache python3 py3-pip
+
 WORKDIR /app
 
 # Copy dependencies from deps stage
@@ -23,6 +26,9 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy application code
 COPY . .
+
+# Install Python dependencies for MCP server
+RUN pip3 install --no-cache-dir fastmcp --break-system-packages
 
 # Generate Prisma Client
 RUN npx prisma generate
@@ -33,6 +39,9 @@ RUN npm run build
 # Stage 3: Runner (Production)
 FROM node:20-alpine AS runner
 
+# Install Python and pip for MCP server
+RUN apk add --no-cache python3 py3-pip
+
 WORKDIR /app
 
 # Set environment to production
@@ -42,6 +51,9 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
+# Install Python dependencies for MCP server
+RUN pip3 install --no-cache-dir fastmcp --break-system-packages
+
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
@@ -49,9 +61,11 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/mcp_servers ./mcp_servers
 
-# Create data directory for SQLite database
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
+# Create data directory for SQLite database and artifact workspaces
+RUN mkdir -p /app/data /app/artifact_workspaces && \
+    chown -R nextjs:nodejs /app/data /app/artifact_workspaces
 
 # Set user
 USER nextjs

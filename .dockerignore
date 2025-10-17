@@ -44,6 +44,12 @@ docker-compose.yml
 prisma/dev.db
 prisma/migrations
 
+# MCP local cache
+.playwright-mcp/
+
+# Artifact workspaces (will be created in container)
+artifact_workspaces/
+
 # Logs
 logs
 *.log
