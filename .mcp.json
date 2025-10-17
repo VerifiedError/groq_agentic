@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "D:\\mcp\\node_modules\\@playwright\\mcp\\cli.js",
+        "--headless"
+      ],
+      "cwd": "D:\\mcp"
+    },
+    "filesystem": {
+      "command": "python",
+      "args": [
+        "mcp_servers/filesystem_server.py"
+      ]
+    }
+  }
+}
