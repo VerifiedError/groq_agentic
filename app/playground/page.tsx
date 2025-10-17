@@ -29,6 +29,8 @@ import { ArtifactButton } from '@/components/playground/artifact-button'
 import { ArtifactCard } from '@/components/playground/artifact-card'
 import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
 import { extractArtifactsFromResponse } from '@/lib/code-detector'
+import { parseArtifactResponse } from '@/lib/artifact-parser'
+import { ARTIFACT_GENERATION_SYSTEM_PROMPT } from '@/lib/artifact-system-prompts'
 
 interface Model {
   id: string
@@ -110,7 +112,7 @@ export default function PlaygroundChatPage() {
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
 
   // Prompts
-  const [systemPrompt, setSystemPrompt] = useState('You are a helpful AI assistant.')
+  const [systemPrompt, setSystemPrompt] = useState(ARTIFACT_GENERATION_SYSTEM_PROMPT)
   const [sessionPrompt, setSessionPrompt] = useState('')
   const [editingSessionPrompt, setEditingSessionPrompt] = useState(false)
   const [showSystemPromptSettings, setShowSystemPromptSettings] = useState(false)
@@ -557,18 +559,51 @@ export default function PlaygroundChatPage() {
       // Auto-detect code and create artifacts
       const createdArtifactIds: string[] = []
       const fullContent = Object.values(modelResponses).map(r => r.content).join('\n\n')
-      const detectedArtifacts = extractArtifactsFromResponse(fullContent)
 
-      if (detectedArtifacts.length > 0) {
-        const newArtifacts: Artifact[] = detectedArtifacts.map((detected) => ({
+      // Try structured parsing first (XML/JSON)
+      const structuredArtifact = parseArtifactResponse(fullContent)
+      let newArtifacts: Artifact[] = []
+
+      if (structuredArtifact && structuredArtifact.type === 'creation' && structuredArtifact.creation) {
+        // Structured artifact found
+        const spec = structuredArtifact.creation
+        const fileMap: Record<string, string> = {}
+        spec.files.forEach(file => {
+          fileMap[file.path] = file.content
+        })
+
+        const depsMap: Record<string, string> = {}
+        spec.dependencies?.forEach(dep => {
+          depsMap[dep.name] = dep.version
+        })
+
+        newArtifacts = [{
           id: `artifact-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-          type: detected.type,
-          title: detected.title,
-          description: detected.description,
-          files: detected.files,
-          dependencies: detected.dependencies,
+          type: spec.metadata.type as ArtifactType,
+          title: spec.metadata.title,
+          description: spec.metadata.description,
+          files: fileMap,
+          dependencies: spec.dependencies ? depsMap : undefined,
           createdAt: new Date()
-        }))
+        }]
+      } else {
+        // Fall back to markdown code block detection
+        const detectedArtifacts = extractArtifactsFromResponse(fullContent)
+
+        if (detectedArtifacts.length > 0) {
+          newArtifacts = detectedArtifacts.map((detected) => ({
+            id: `artifact-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            type: detected.type,
+            title: detected.title,
+            description: detected.description,
+            files: detected.files,
+            dependencies: detected.dependencies,
+            createdAt: new Date()
+          }))
+        }
+      }
+
+      if (newArtifacts.length > 0) {
 
         // Add artifacts to state
         setArtifacts(prev => [...prev, ...newArtifacts])
