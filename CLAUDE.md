@@ -129,7 +129,28 @@ This ensures the user can rebuild their Docker container at any time to get all 
 
 ### Docker Rebuild Process (User's Perspective):
 
-When the user wants to deploy all updates to Docker:
+#### Quick Update (One-Click):
+
+**Recommended**: Use `docker-update.bat` for automatic updates:
+
+```bash
+# Simply double-click docker-update.bat
+docker-update.bat
+
+# This automatically:
+# 1. Pulls latest code from GitHub (git pull origin master)
+# 2. Stops running containers
+# 3. Rebuilds Docker image from scratch (no cache)
+# 4. Applies all database migrations
+# 5. Starts fresh containers
+# 6. Opens the app in your browser
+```
+
+**When to use**: Anytime you want to deploy the latest code from GitHub to Docker. This is the fastest and easiest way to update.
+
+#### Manual Update (Interactive):
+
+When the user wants to deploy updates manually:
 
 ```bash
 # 1. Pull latest code (if needed)
@@ -260,6 +281,21 @@ npm start
 ```
 
 ### Docker Commands
+
+#### Quick Start Scripts
+
+```bash
+# One-click update (RECOMMENDED for deployments)
+# Pulls latest code, rebuilds, and starts containers
+docker-update.bat
+
+# Interactive Docker management
+# Choose from: Build & start, Just start, Stop, View logs, Clean rebuild
+docker-start.bat
+```
+
+#### Manual Docker Commands
+
 ```bash
 # Build and run with Docker Compose (recommended)
 docker-compose up
