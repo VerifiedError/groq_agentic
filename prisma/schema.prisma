@@ -51,6 +51,7 @@ model AgenticSession {
   // Relations
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages      AgenticMessage[]
+  artifacts     Artifact[]
 
   @@index([userId])
   @@map("agentic_sessions")
@@ -82,6 +83,39 @@ model AgenticMessage {
 
   @@index([sessionId])
   @@map("agentic_messages")
+}
+
+// ==================== ARTIFACT MODELS ====================
+
+model Artifact {
+  id            String   @id @default(cuid())
+  sessionId     String   @map("session_id")
+
+  type          String   // 'react', 'vanilla-js', 'html', 'vue', 'angular'
+  title         String
+  description   String?
+
+  // Multi-file support: JSON object with filename as key and content as value
+  // Example: { "App.js": "...", "styles.css": "...", "utils.js": "..." }
+  files         String   // JSON
+
+  // NPM dependencies: JSON object
+  // Example: { "three": "^0.150.0", "react-spring": "^9.7.0" }
+  dependencies  String?  // JSON (optional)
+
+  // Metadata
+  template      String?  // Template used (e.g., 'react-starter', '3d-game')
+  isPublic      Boolean  @default(false) @map("is_public") // Future: sharing
+
+  // Timestamps
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  session       AgenticSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("artifacts")
 }
 
 // ==================== GROQ MODELS ====================

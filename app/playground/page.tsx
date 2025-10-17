@@ -24,6 +24,9 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
+import { ArtifactViewer } from '@/components/playground/artifact-viewer'
+import { ArtifactButton } from '@/components/playground/artifact-button'
+import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
 
 interface Model {
   id: string
@@ -35,12 +38,31 @@ interface Model {
   isActive: boolean
 }
 
+interface ModelResponse {
+  modelId: string
+  content: string
+  cost?: number
+  toolCalls?: any[]
+  audioData?: string // Base64 audio data for TTS models
+}
+
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
   cost?: number
   timestamp: Date
+  responses?: ModelResponse[] // For multi-model assistant messages
+}
+
+interface Artifact {
+  id: string
+  type: ArtifactType
+  title: string
+  description?: string
+  files: Record<string, string>
+  dependencies?: Record<string, string>
+  createdAt: Date
 }
 
 interface ChatSession {
@@ -48,6 +70,8 @@ interface ChatSession {
   title: string
   messages: Message[]
   model: string
+  sessionPrompt: string
+  artifacts: Artifact[]
   createdAt: Date
   updatedAt: Date
 }
@@ -64,25 +88,45 @@ export default function PlaygroundChatPage() {
 
   // Models
   const [models, setModels] = useState<Model[]>([])
-  const [selectedModel, setSelectedModel] = useState('')
+  const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
-  const [streamingContent, setStreamingContent] = useState('')
+  const [streamingContent, setStreamingContent] = useState<Record<string, string>>({})
+  const [attachments, setAttachments] = useState<Array<{ data: string; name: string; type: string }>>([])
 
   // Settings
   const [showSettings, setShowSettings] = useState(false)
+  const [showModelSelector, setShowModelSelector] = useState(false)
   const [temperature, setTemperature] = useState(1)
   const [maxTokens, setMaxTokens] = useState(1024)
   const [topP, setTopP] = useState(1)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
 
+  // Prompts
+  const [systemPrompt, setSystemPrompt] = useState('You are a helpful AI assistant.')
+  const [sessionPrompt, setSessionPrompt] = useState('')
+  const [editingSessionPrompt, setEditingSessionPrompt] = useState(false)
+  const [showSystemPromptSettings, setShowSystemPromptSettings] = useState(false)
+  const [expandedSessionPromptEditor, setExpandedSessionPromptEditor] = useState(false)
+
+  // Artifacts
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
+  const [tempSessionPrompt, setTempSessionPrompt] = useState('')
+
+  // Chat actions
+  const [openMenuChatId, setOpenMenuChatId] = useState<string | null>(null)
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+
   // Refs
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -108,6 +152,7 @@ export default function PlaygroundChatPage() {
           ...s,
           createdAt: new Date(s.createdAt),
           updatedAt: new Date(s.updatedAt),
+          artifacts: s.artifacts || [], // Initialize empty artifacts for backward compatibility
           messages: s.messages.map((m: any) => ({
             ...m,
             timestamp: new Date(m.timestamp)
@@ -127,14 +172,30 @@ export default function PlaygroundChatPage() {
     }
   }, [chatSessions])
 
-  // Load active chat messages
+  // Load/Save system prompt from/to localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('playground-system-prompt')
+    if (saved) {
+      setSystemPrompt(saved)
+    }
+  }, [])
+
+  useEffect(() => {
+    localStorage.setItem('playground-system-prompt', systemPrompt)
+  }, [systemPrompt])
+
+  // Load active chat messages and prompts
   useEffect(() => {
     if (activeChatId) {
       const activeChat = chatSessions.find(s => s.id === activeChatId)
       if (activeChat) {
         setMessages(activeChat.messages)
-        setSelectedModel(activeChat.model)
+        setSelectedModels([activeChat.model])
+        setSessionPrompt(activeChat.sessionPrompt || '')
+        setArtifacts(activeChat.artifacts || [])
       }
+    } else {
+      setArtifacts([])
     }
   }, [activeChatId, chatSessions])
 
@@ -157,8 +218,8 @@ export default function PlaygroundChatPage() {
       const response = await fetch('/api/models')
       const data = await response.json()
       setModels(data.models || [])
-      if (data.models?.length > 0 && !selectedModel) {
-        setSelectedModel(data.models[0].id)
+      if (data.models?.length > 0 && selectedModels.length === 0) {
+        setSelectedModels([data.models[0].id])
       }
     } catch (error) {
       console.error('Failed to fetch models:', error)
@@ -170,13 +231,15 @@ export default function PlaygroundChatPage() {
 
   const createNewChat = () => {
     // Ensure we have a model selected
-    const modelToUse = selectedModel || models[0]?.id || ''
+    const modelToUse = selectedModels.length > 0 ? selectedModels[0] : models[0]?.id || ''
 
     const newChat: ChatSession = {
       id: `chat-${Date.now()}`,
       title: 'Untitled Chat',
       messages: [],
       model: modelToUse,
+      sessionPrompt: '',
+      artifacts: [],
       createdAt: new Date(),
       updatedAt: new Date()
     }
@@ -184,118 +247,343 @@ export default function PlaygroundChatPage() {
     setActiveChatId(newChat.id)
     setMessages([])
     setInput('')
-    setStreamingContent('')
+    setStreamingContent({})
+    setSessionPrompt('')
 
     // Set the model if not already set
-    if (!selectedModel && modelToUse) {
-      setSelectedModel(modelToUse)
+    if (selectedModels.length === 0 && modelToUse) {
+      setSelectedModels([modelToUse])
     }
   }
 
+  const handleDeleteChat = (chatId: string) => {
+    setChatSessions(prev => prev.filter(c => c.id !== chatId))
+    if (activeChatId === chatId) {
+      // If we're deleting the active chat, switch to the first remaining chat or create new
+      const remaining = chatSessions.filter(c => c.id !== chatId)
+      if (remaining.length > 0) {
+        setActiveChatId(remaining[0].id)
+        setMessages(remaining[0].messages)
+        setSelectedModels([remaining[0].model])
+      } else {
+        createNewChat()
+      }
+    }
+    setOpenMenuChatId(null)
+    toast.success('Chat deleted')
+  }
+
+  const handleStartRename = (chat: ChatSession) => {
+    setRenamingChatId(chat.id)
+    setRenameValue(chat.title)
+    setOpenMenuChatId(null)
+  }
+
+  const handleFinishRename = () => {
+    if (!renamingChatId || !renameValue.trim()) {
+      setRenamingChatId(null)
+      return
+    }
+    setChatSessions(prev =>
+      prev.map(chat =>
+        chat.id === renamingChatId
+          ? { ...chat, title: renameValue.trim(), updatedAt: new Date() }
+          : chat
+      )
+    )
+    setRenamingChatId(null)
+    setRenameValue('')
+    toast.success('Chat renamed')
+  }
+
+  const handleCancelRename = () => {
+    setRenamingChatId(null)
+    setRenameValue('')
+  }
+
+  const handleSessionPromptSave = (promptValue?: string) => {
+    if (!activeChatId) return
+
+    const promptToSave = promptValue !== undefined ? promptValue : sessionPrompt
+
+    setChatSessions(prev =>
+      prev.map(chat =>
+        chat.id === activeChatId
+          ? { ...chat, sessionPrompt: promptToSave, updatedAt: new Date() }
+          : chat
+      )
+    )
+    setEditingSessionPrompt(false)
+  }
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    // Limit to 5 images total
+    if (attachments.length + files.length > 5) {
+      toast.error('Maximum 5 images per message')
+      return
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error(`${file.name} is not an image file`)
+        continue
+      }
+
+      // Validate file size (4MB max for base64)
+      if (file.size > 4 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 4MB)`)
+        continue
+      }
+
+      // Convert to base64
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64Data = event.target?.result as string
+        setAttachments(prev => [
+          ...prev,
+          {
+            data: base64Data,
+            name: file.name,
+            type: file.type
+          }
+        ])
+      }
+      reader.readAsDataURL(file)
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  // Artifact management
+  const handleCreateArtifact = (template: ArtifactTemplate, customTitle?: string) => {
+    const newArtifact: Artifact = {
+      id: `artifact-${Date.now()}`,
+      type: template.type,
+      title: customTitle || template.title,
+      description: template.description,
+      files: template.files,
+      dependencies: template.dependencies,
+      createdAt: new Date()
+    }
+
+    setArtifacts(prev => [...prev, newArtifact])
+
+    // Add to active chat session
+    if (activeChatId) {
+      setChatSessions(prev =>
+        prev.map(chat =>
+          chat.id === activeChatId
+            ? { ...chat, artifacts: [...chat.artifacts, newArtifact], updatedAt: new Date() }
+            : chat
+        )
+      )
+    }
+
+    // Open the artifact viewer
+    setActiveArtifactId(newArtifact.id)
+    toast.success(`Artifact "${newArtifact.title}" created`)
+  }
+
+  const handleDeleteArtifact = (artifactId: string) => {
+    setArtifacts(prev => prev.filter(a => a.id !== artifactId))
+
+    // Remove from active chat session
+    if (activeChatId) {
+      setChatSessions(prev =>
+        prev.map(chat =>
+          chat.id === activeChatId
+            ? { ...chat, artifacts: chat.artifacts.filter(a => a.id !== artifactId), updatedAt: new Date() }
+            : chat
+        )
+      )
+    }
+
+    setActiveArtifactId(null)
+  }
+
   const handleSubmit = async () => {
-    if (!input.trim() || isGenerating || !selectedModel) return
+    if ((!input.trim() && attachments.length === 0) || isGenerating || selectedModels.length === 0) return
+
+    // Construct message content
+    let messageContent: any = input.trim()
+    if (attachments.length > 0) {
+      // Multi-modal message with images
+      messageContent = [
+        { type: 'text', text: input.trim() || 'What\'s in this image?' },
+        ...attachments.map(att => ({
+          type: 'image_url',
+          image_url: {
+            url: att.data
+          }
+        }))
+      ]
+    }
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       role: 'user',
-      content: input.trim(),
+      content: input.trim() || 'What\'s in this image?',
       timestamp: new Date()
     }
 
     // Add user message
     setMessages(prev => [...prev, userMessage])
     setInput('')
+    setAttachments([])
     setIsGenerating(true)
-    setStreamingContent('')
+    setStreamingContent({})
 
     try {
-      const response = await fetch('/api/playground', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            { role: 'user', content: input.trim() }
-          ],
-          temperature,
-          maxTokens,
-          topP
-        })
-      })
+      // Create response tracking
+      const modelResponses: Record<string, { content: string; cost: number; toolCalls: any[] }> = {}
 
-      if (!response.ok) {
-        throw new Error('Failed to generate response')
-      }
+      // Start concurrent streams for all selected models
+      const streamPromises = selectedModels.map(async (modelId) => {
+        try {
+          // Construct messages array with system prompts
+          const apiMessages: any[] = []
 
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let accumulatedContent = ''
+          // Add global system prompt if it exists
+          if (systemPrompt.trim()) {
+            apiMessages.push({ role: 'system', content: `[system_prompt]\n${systemPrompt}` })
+          }
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+          // Add session-specific prompt if it exists
+          if (sessionPrompt.trim()) {
+            apiMessages.push({ role: 'system', content: `[user_prompt]\n${sessionPrompt}` })
+          }
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
+          // Add the current user message
+          apiMessages.push({ role: 'user', content: messageContent })
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (data.content) {
-                  accumulatedContent += data.content
-                  setStreamingContent(accumulatedContent)
-                }
-                if (data.done) {
-                  const assistantMessage: Message = {
-                    id: `msg-${Date.now()}`,
-                    role: 'assistant',
-                    content: accumulatedContent,
-                    cost: data.cost || 0,
-                    timestamp: new Date()
+          const response = await fetch('/api/playground', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: modelId,
+              messages: apiMessages,
+              temperature,
+              maxTokens,
+              topP
+            })
+          })
+
+          if (!response.ok) {
+            throw new Error(`Failed to generate response for ${modelId}`)
+          }
+
+          const reader = response.body?.getReader()
+          const decoder = new TextDecoder()
+          let accumulatedContent = ''
+
+          if (reader) {
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+
+              const chunk = decoder.decode(value)
+              const lines = chunk.split('\n')
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const data = JSON.parse(line.slice(6))
+                    if (data.content) {
+                      accumulatedContent += data.content
+                      setStreamingContent(prev => ({
+                        ...prev,
+                        [modelId]: accumulatedContent
+                      }))
+                    }
+                    if (data.done) {
+                      modelResponses[modelId] = {
+                        content: accumulatedContent,
+                        cost: data.cost || 0,
+                        toolCalls: [],
+                        audioData: data.audioData // Store audio data if present
+                      }
+                    }
+                  } catch (e) {
+                    // Ignore parse errors
                   }
-                  setMessages(prev => [...prev, assistantMessage])
-                  setStreamingContent('')
-
-                  // Update chat session
-                  if (activeChatId) {
-                    setChatSessions(prev => prev.map(chat =>
-                      chat.id === activeChatId
-                        ? {
-                            ...chat,
-                            messages: [...chat.messages, userMessage, assistantMessage],
-                            updatedAt: new Date(),
-                            title: chat.title === 'Untitled Chat'
-                              ? input.trim().slice(0, 50)
-                              : chat.title
-                          }
-                        : chat
-                    ))
-                  }
                 }
-              } catch (e) {
-                // Ignore parse errors
               }
             }
           }
+        } catch (error: any) {
+          console.error(`Error streaming from ${modelId}:`, error)
+          modelResponses[modelId] = {
+            content: `Error: ${error.message}`,
+            cost: 0,
+            toolCalls: []
+          }
         }
+      })
+
+      // Wait for all streams to complete
+      await Promise.all(streamPromises)
+
+      // Create assistant message with all model responses
+      const assistantMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: Object.values(modelResponses).map(r => r.content).join('\n\n---\n\n'),
+        timestamp: new Date(),
+        responses: selectedModels.map(modelId => ({
+          modelId,
+          content: modelResponses[modelId]?.content || '',
+          cost: modelResponses[modelId]?.cost || 0,
+          toolCalls: modelResponses[modelId]?.toolCalls || [],
+          audioData: modelResponses[modelId]?.audioData
+        }))
+      }
+
+      setMessages(prev => [...prev, assistantMessage])
+      setStreamingContent({})
+
+      // Update chat session
+      if (activeChatId) {
+        setChatSessions(prev => prev.map(chat =>
+          chat.id === activeChatId
+            ? {
+                ...chat,
+                messages: [...chat.messages, userMessage, assistantMessage],
+                updatedAt: new Date(),
+                title: chat.title === 'Untitled Chat'
+                  ? input.trim().slice(0, 50)
+                  : chat.title
+              }
+            : chat
+        ))
       }
     } catch (error: any) {
       console.error('Error:', error)
       toast.error(error.message || 'Failed to generate response')
-      setStreamingContent('')
+      setStreamingContent({})
     } finally {
       setIsGenerating(false)
     }
   }
 
   const quickActions = [
-    { icon: ImageIcon, label: 'Image' },
-    { icon: Monitor, label: 'Interactive App' },
-    { icon: Layout, label: 'Landing Page' },
-    { icon: Grid3x3, label: '2D Game' },
-    { icon: Box, label: '3D Game' }
+    { icon: ImageIcon, label: 'Image', prompt: 'Generate a detailed image of ' },
+    { icon: Monitor, label: 'Interactive App', prompt: 'Create an interactive web application that ' },
+    { icon: Layout, label: 'Landing Page', prompt: 'Design a modern landing page for ' },
+    { icon: Grid3x3, label: '2D Game', prompt: 'Build a 2D game with ' },
+    { icon: Box, label: '3D Game', prompt: 'Create a 3D game featuring ' }
   ]
 
   // Group chats by date
@@ -332,6 +620,7 @@ export default function PlaygroundChatPage() {
   }
 
   return (
+    <>
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
       <aside
@@ -390,23 +679,93 @@ export default function PlaygroundChatPage() {
                               : 'hover:bg-accent/50'
                           }`}
                         >
-                          <button
-                            onClick={() => setActiveChatId(chat.id)}
-                            className="flex-1 text-left truncate text-sm"
-                          >
-                            {chat.title}
-                          </button>
-                          <button
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded"
-                            aria-label="Chat actions"
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </button>
+                          {renamingChatId === chat.id ? (
+                            <input
+                              type="text"
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleFinishRename()
+                                if (e.key === 'Escape') handleCancelRename()
+                              }}
+                              onBlur={handleFinishRename}
+                              className="flex-1 text-sm bg-background border rounded px-2 py-1 mr-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                              autoFocus
+                            />
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setActiveChatId(chat.id)}
+                                className="flex-1 text-left truncate text-sm"
+                              >
+                                {chat.title}
+                              </button>
+                              <div className="relative">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setOpenMenuChatId(openMenuChatId === chat.id ? null : chat.id)
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded"
+                                  aria-label="Chat actions"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </button>
+                                {openMenuChatId === chat.id && (
+                                  <div className="absolute right-0 top-full mt-1 w-32 bg-card border rounded-lg shadow-lg py-1 z-50">
+                                    <button
+                                      onClick={() => handleStartRename(chat)}
+                                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors"
+                                    >
+                                      Rename
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteChat(chat.id)}
+                                      className="w-full text-left px-3 py-1.5 text-sm text-destructive hover:bg-accent transition-colors"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* System Prompt Settings */}
+              <div className="flex-shrink-0 border-t pt-2">
+                <button
+                  onClick={() => setShowSystemPromptSettings(!showSystemPromptSettings)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent rounded-lg transition-colors"
+                >
+                  <span>System Prompt</span>
+                  <Command className="h-3 w-3" />
+                </button>
+                {showSystemPromptSettings && (
+                  <div className="px-2 py-2">
+                    <textarea
+                      value={systemPrompt}
+                      onChange={(e) => setSystemPrompt(e.target.value)}
+                      placeholder="Global system instructions for all chats..."
+                      className="w-full text-xs bg-background border rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-primary min-h-[4rem]"
+                      rows={3}
+                      style={{ maxHeight: '120px' }}
+                      onInput={(e) => {
+                        const target = e.target as HTMLTextAreaElement
+                        target.style.height = 'auto'
+                        target.style.height = `${Math.min(target.scrollHeight, 120)}px`
+                      }}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1 px-1">
+                      Applied to all conversations automatically
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -415,57 +774,176 @@ export default function PlaygroundChatPage() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar */}
-        <div className="flex-shrink-0 flex items-center gap-2 p-4 border-b">
-          <button
-            onClick={() => {/* Open model selector */}}
-            className="inline-flex items-center justify-center gap-2 px-3 h-9 rounded-md border bg-background shadow-sm hover:bg-accent transition-colors text-sm font-medium"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Model</span>
-            <span className="hidden md:flex items-center gap-0.5 text-xs">
-              <kbd className="h-4 px-1 rounded border bg-muted">⌘</kbd>
-              <kbd className="h-4 px-1 rounded border bg-muted">K</kbd>
-            </span>
-          </button>
+        {/* Top bar - Model Chips */}
+        <div className="flex-shrink-0 p-4 border-b">
+          <div className="flex flex-col gap-2 flex-1 min-w-0">
+            <div className="max-h-[8.5rem] overflow-y-auto">
+              <div className="flex flex-wrap items-center gap-2 p-px">
+                {selectedModels.map((modelId) => {
+                  const model = models.find(m => m.id === modelId)
+                  return (
+                    <div key={modelId} className="duration-200 animate-in fade-in">
+                      <div className="relative flex h-9 cursor-pointer items-center justify-between gap-1 rounded-lg transition-all duration-150 ease-in-out border bg-background text-foreground shadow-sm hover:bg-accent w-fit shrink-0">
+                        <div className="relative flex h-full w-full select-none items-center gap-2 pl-2">
+                          <div className="min-w-0 flex-1">
+                            <span className="block text-xs md:text-sm font-medium">
+                              {model?.displayName || modelId}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center flex-shrink-0 pr-1">
+                          <button
+                            onClick={() => setSelectedModels(prev => prev.filter(id => id !== modelId))}
+                            className="inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors gap-2 leading-6 text-muted-foreground border border-transparent h-6 w-6 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
+                            aria-label="Remove model"
+                          >
+                            <Plus className="h-4 w-4 rotate-45" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+                <button
+                  onClick={() => setShowModelSelector(true)}
+                  className="inline-flex items-center justify-center whitespace-nowrap rounded-md transition-colors gap-2 bg-background border shadow-sm hover:bg-accent text-sm font-medium h-9 w-9 flex-shrink-0"
+                  type="button"
+                  aria-label="Add Model"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Artifact Button */}
+              <div className="ml-4">
+                <ArtifactButton onCreateArtifact={handleCreateArtifact} />
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Session Prompt Section (Per-Chat) */}
+        {activeChatId && (
+          <div className="flex-shrink-0 border-b bg-muted/30">
+            <div className="max-w-4xl mx-auto p-3">
+              <div className="flex items-start gap-2">
+                <div className="text-xs font-medium text-muted-foreground whitespace-nowrap pt-2">
+                  Session:
+                </div>
+                <button
+                  onClick={() => {
+                    setTempSessionPrompt(sessionPrompt)
+                    setExpandedSessionPromptEditor(true)
+                  }}
+                  className="flex-1 text-left text-xs bg-background border rounded-md px-2 py-1.5 hover:bg-accent transition-colors min-h-[2.5rem] focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {sessionPrompt || (
+                    <span className="text-muted-foreground">
+                      Click to edit session-specific prompt...
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="max-w-4xl mx-auto space-y-6">
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`rounded-lg p-4 max-w-[80%] ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card border'
-                }`}>
-                  <ReactMarkdown className="prose dark:prose-invert max-w-none">
-                    {message.content}
-                  </ReactMarkdown>
-                  {message.cost !== undefined && message.cost > 0 && (
-                    <div className="mt-2 text-xs opacity-70">
-                      Cost: ${message.cost.toFixed(6)}
+              <div key={message.id}>
+                {message.role === 'user' ? (
+                  <div className="flex gap-3 justify-end">
+                    <div className="rounded-lg p-4 max-w-[80%] bg-primary text-primary-foreground">
+                      <div className="prose dark:prose-invert max-w-none">
+                        <ReactMarkdown>
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : message.responses && message.responses.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className={`grid gap-3 ${selectedModels.length === 1 ? 'grid-cols-1' : selectedModels.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                      {message.responses.map((response) => {
+                        const model = models.find(m => m.id === response.modelId)
+                        return (
+                          <div key={response.modelId} className="rounded-lg border bg-card">
+                            <div className="px-3 py-2 border-b bg-muted/50 flex items-center justify-between">
+                              <span className="text-xs font-medium">{model?.displayName || response.modelId}</span>
+                              {response.cost > 0 && (
+                                <span className="text-xs text-muted-foreground">${response.cost.toFixed(6)}</span>
+                              )}
+                            </div>
+                            <div className="p-3">
+                              {response.audioData ? (
+                                <div className="flex flex-col gap-2">
+                                  <audio controls className="w-full">
+                                    <source src={response.audioData} type="audio/mp3" />
+                                    Your browser does not support the audio element.
+                                  </audio>
+                                  <p className="text-xs text-muted-foreground">
+                                    Audio generated from text
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="prose dark:prose-invert max-w-none text-sm">
+                                  <ReactMarkdown>
+                                    {response.content}
+                                  </ReactMarkdown>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-3 justify-start">
+                    <div className="rounded-lg p-4 max-w-[80%] bg-card border">
+                      <div className="prose dark:prose-invert max-w-none">
+                        <ReactMarkdown>
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                      {message.cost !== undefined && message.cost > 0 && (
+                        <div className="mt-2 text-xs opacity-70">
+                          Cost: ${message.cost.toFixed(6)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
-            {/* Streaming message */}
-            {streamingContent && (
-              <div className="flex gap-3 justify-start">
-                <div className="rounded-lg p-4 max-w-[80%] bg-card border">
-                  <ReactMarkdown className="prose dark:prose-invert max-w-none">
-                    {streamingContent}
-                  </ReactMarkdown>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span>Generating...</span>
-                  </div>
+            {/* Streaming messages */}
+            {Object.keys(streamingContent).length > 0 && (
+              <div className="space-y-2">
+                <div className={`grid gap-3 ${selectedModels.length === 1 ? 'grid-cols-1' : selectedModels.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                  {selectedModels.map((modelId) => {
+                    const model = models.find(m => m.id === modelId)
+                    const content = streamingContent[modelId] || ''
+                    return (
+                      <div key={modelId} className="rounded-lg border bg-card">
+                        {/* Model Header */}
+                        <div className="px-3 py-2 border-b bg-muted/50 flex items-center justify-between">
+                          <span className="text-xs font-medium">{model?.displayName || modelId}</span>
+                          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                        </div>
+                        {/* Model Response */}
+                        <div className="p-3">
+                          <div className="prose dark:prose-invert max-w-none text-sm">
+                            <ReactMarkdown>
+                              {content || '_Waiting for response..._'}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -483,6 +961,10 @@ export default function PlaygroundChatPage() {
                 {quickActions.map((action) => (
                   <button
                     key={action.label}
+                    onClick={() => {
+                      setInput(action.prompt)
+                      textareaRef.current?.focus()
+                    }}
                     className="inline-flex items-center gap-2 px-3 h-8 rounded-full border bg-background shadow-sm hover:bg-accent transition-colors text-xs font-medium whitespace-nowrap"
                   >
                     <action.icon className="h-4 w-4" />
@@ -490,6 +972,28 @@ export default function PlaygroundChatPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Attached Images Preview */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 pb-2 mb-2">
+                  {attachments.map((att, idx) => (
+                    <div key={idx} className="relative group">
+                      <img
+                        src={att.data}
+                        alt={att.name}
+                        className="h-20 w-20 object-cover rounded-lg border"
+                      />
+                      <button
+                        onClick={() => handleRemoveAttachment(idx)}
+                        className="absolute -top-2 -right-2 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove image"
+                      >
+                        <Plus className="h-3 w-3 rotate-45" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Input */}
               <div className="rounded-lg bg-background border focus-within:bg-accent transition-colors">
@@ -522,11 +1026,20 @@ export default function PlaygroundChatPage() {
                     <Settings className="h-5 w-5" />
                   </button>
                   <button
+                    onClick={() => fileInputRef.current?.click()}
                     className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                     aria-label="Attach file"
                   >
                     <Paperclip className="h-5 w-5" />
                   </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
                   <button
                     className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
                     aria-label="Drawing"
@@ -546,7 +1059,7 @@ export default function PlaygroundChatPage() {
                 </div>
                 <button
                   onClick={handleSubmit}
-                  disabled={!input.trim() || isGenerating}
+                  disabled={(!input.trim() && attachments.length === 0) || isGenerating}
                   className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-all"
                 >
                   <ArrowUp className="h-4 w-4" />
@@ -557,5 +1070,239 @@ export default function PlaygroundChatPage() {
         </div>
       </div>
     </div>
+
+      {/* Model Selector Modal */}
+      {showModelSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-2xl bg-card border rounded-lg shadow-lg">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Select a Model</h2>
+              <button
+                onClick={() => setShowModelSelector(false)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+              >
+                <Plus className="h-4 w-4 rotate-45" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              {isLoadingModels ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : models.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <p>No models available</p>
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {models.map((model) => {
+                    const isSelected = selectedModels.includes(model.id)
+                    return (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          if (isSelected) {
+                            // Remove from selection
+                            setSelectedModels(prev => prev.filter(id => id !== model.id))
+                            toast.info(`Removed ${model.displayName}`)
+                          } else {
+                            // Add to selection
+                            setSelectedModels(prev => [...prev, model.id])
+                            toast.success(`Added ${model.displayName}`)
+                          }
+                        }}
+                        className={`flex items-start gap-3 p-3 rounded-md border transition-colors text-left ${
+                          isSelected
+                            ? 'bg-primary/10 border-primary hover:bg-primary/20'
+                            : 'bg-background hover:bg-accent'
+                        }`}
+                      >
+                      <div className="flex-1">
+                        <div className="font-medium">{model.displayName}</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {model.isVision && <span className="inline-flex items-center gap-1 mr-2"><Plus className="h-3 w-3" />Vision</span>}
+                          Context: {model.contextWindow.toLocaleString()} tokens
+                        </div>
+                        {model.inputPricing > 0 && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            ${model.inputPricing} / ${model.outputPricing} per 1M tokens
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-card border rounded-lg shadow-lg">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Settings</h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+              >
+                <Plus className="h-4 w-4 rotate-45" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 space-y-6">
+              {/* Temperature */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Temperature</label>
+                  <span className="text-sm text-muted-foreground">{temperature}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Controls randomness. Lower is more focused, higher is more creative.
+                </p>
+              </div>
+
+              {/* Max Tokens */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Max Tokens</label>
+                  <span className="text-sm text-muted-foreground">{maxTokens}</span>
+                </div>
+                <input
+                  type="range"
+                  min="256"
+                  max="4096"
+                  step="256"
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Maximum length of the response.
+                </p>
+              </div>
+
+              {/* Top P */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Top P</label>
+                  <span className="text-sm text-muted-foreground">{topP}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={topP}
+                  onChange={(e) => setTopP(parseFloat(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Controls diversity via nucleus sampling.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t">
+              <button
+                onClick={() => {
+                  setTemperature(1)
+                  setMaxTokens(1024)
+                  setTopP(1)
+                }}
+                className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
+              >
+                Reset to Defaults
+              </button>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded Session Prompt Editor */}
+      {expandedSessionPromptEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-3xl bg-card border rounded-lg shadow-lg flex flex-col max-h-[80vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Edit Session Prompt</h2>
+              <button
+                onClick={() => setExpandedSessionPromptEditor(false)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+              >
+                <Plus className="h-4 w-4 rotate-45" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 p-4 overflow-y-auto">
+              <textarea
+                value={tempSessionPrompt}
+                onChange={(e) => setTempSessionPrompt(e.target.value)}
+                placeholder="Enter session-specific instructions for this chat...&#10;&#10;Examples:&#10;- Always respond in a specific tone or style&#10;- Focus on particular topics&#10;- Follow specific formatting rules"
+                className="w-full min-h-[300px] bg-background border rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary font-mono"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                This prompt will be applied to all messages in this chat session, in addition to the global system prompt.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 p-4 border-t">
+              <button
+                onClick={() => setExpandedSessionPromptEditor(false)}
+                className="px-4 py-2 text-sm border rounded-md hover:bg-accent transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setSessionPrompt(tempSessionPrompt)
+                  handleSessionPromptSave(tempSessionPrompt)
+                  setExpandedSessionPromptEditor(false)
+                }}
+                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Artifact Viewer */}
+      {activeArtifactId && artifacts.find(a => a.id === activeArtifactId) && (
+        <ArtifactViewer
+          artifact={artifacts.find(a => a.id === activeArtifactId)!}
+          onClose={() => setActiveArtifactId(null)}
+          onDelete={() => handleDeleteArtifact(activeArtifactId)}
+        />
+      )}
+    </>
   )
 }

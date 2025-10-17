@@ -29,7 +29,67 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create a streaming response
+    // Check if this is a TTS model
+    const isTTSModel = model.includes('playai-tts') || model.includes('playai_tts')
+
+    // Handle TTS models differently
+    if (isTTSModel) {
+      // For TTS, extract text from last user message
+      const lastUserMessage = messages.filter((m: any) => m.role === 'user').pop()
+      const textToSpeak = lastUserMessage?.content || ''
+
+      try {
+        const speech = await groq.audio.speech.create({
+          model,
+          voice: 'Fritz-PlayAI',
+          input: textToSpeak,
+          response_format: 'mp3'
+        })
+
+        // Convert audio buffer to base64
+        const buffer = await speech.arrayBuffer()
+        const base64Audio = Buffer.from(buffer).toString('base64')
+
+        // Return as event stream for consistency
+        const encoder = new TextEncoder()
+        const stream = new ReadableStream({
+          start(controller) {
+            // Send audio data
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({
+                content: '',
+                audioData: `data:audio/mp3;base64,${base64Audio}`,
+                done: true,
+                usage: {
+                  prompt_tokens: 0,
+                  completion_tokens: Math.ceil(textToSpeak.length / 4),
+                  total_tokens: Math.ceil(textToSpeak.length / 4),
+                  cached_tokens: 0
+                },
+                cost: 0
+              })}\n\n`)
+            )
+            controller.close()
+          }
+        })
+
+        return new Response(stream, {
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+          },
+        })
+      } catch (error: any) {
+        console.error('TTS error:', error)
+        return NextResponse.json(
+          { error: error.message || 'TTS generation failed' },
+          { status: 500 }
+        )
+      }
+    }
+
+    // Create a streaming response for text models
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       async start(controller) {
