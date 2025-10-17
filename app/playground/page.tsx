@@ -166,7 +166,7 @@ export default function PlaygroundPage() {
                   setUsage(data.usage)
                 }
                 if (data.cost !== undefined) {
-                  setCost(data.cost)
+                  setCost(typeof data.cost === 'number' ? data.cost : parseFloat(data.cost) || 0)
                 }
               }
             } catch (e) {
@@ -440,7 +440,7 @@ export default function PlaygroundPage() {
                         </div>
                       </>
                     )}
-                    {cost !== null && (
+                    {cost !== null && typeof cost === 'number' && (
                       <div>
                         <span className="text-muted-foreground">Cost:</span>
                         <span className="ml-2 font-medium text-primary">
