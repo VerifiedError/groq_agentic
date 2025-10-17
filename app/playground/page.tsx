@@ -67,9 +67,10 @@ export default function PlaygroundPage() {
   const [requestHistory, setRequestHistory] = useState<RequestLog[]>([])
   const [showHistory, setShowHistory] = useState(true)
 
-  // Load request history from localStorage
+  // Load request history and prompts from localStorage
   useEffect(() => {
     try {
+      // Load request history
       const savedHistory = localStorage.getItem('playground-request-history')
       if (savedHistory) {
         const parsed = JSON.parse(savedHistory)
@@ -80,8 +81,19 @@ export default function PlaygroundPage() {
         }))
         setRequestHistory(history)
       }
+
+      // Load saved prompts
+      const savedSystemPrompt = localStorage.getItem('playground-system-prompt')
+      if (savedSystemPrompt) {
+        setSystemPrompt(savedSystemPrompt)
+      }
+
+      const savedUserPrompt = localStorage.getItem('playground-user-prompt')
+      if (savedUserPrompt) {
+        setUserPrompt(savedUserPrompt)
+      }
     } catch (error) {
-      console.error('Failed to load request history:', error)
+      console.error('Failed to load from localStorage:', error)
     }
   }, [])
 
@@ -281,6 +293,22 @@ export default function PlaygroundPage() {
     toast.success('Request history cleared')
   }
 
+  const handleSystemPromptBlur = () => {
+    try {
+      localStorage.setItem('playground-system-prompt', systemPrompt)
+    } catch (error) {
+      console.error('Failed to save system prompt:', error)
+    }
+  }
+
+  const handleUserPromptBlur = () => {
+    try {
+      localStorage.setItem('playground-user-prompt', userPrompt)
+    } catch (error) {
+      console.error('Failed to save user prompt:', error)
+    }
+  }
+
   // Calculate overall statistics
   const overallStats = requestHistory.length > 0 ? {
     totalRequests: requestHistory.length,
@@ -403,6 +431,7 @@ export default function PlaygroundPage() {
                 <textarea
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
+                  onBlur={handleSystemPromptBlur}
                   placeholder="You are a helpful assistant..."
                   className="w-full h-24 px-3 py-2 text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                 />
@@ -416,6 +445,7 @@ export default function PlaygroundPage() {
                 <textarea
                   value={userPrompt}
                   onChange={(e) => setUserPrompt(e.target.value)}
+                  onBlur={handleUserPromptBlur}
                   placeholder="Enter your prompt here..."
                   className="flex-1 w-full px-3 py-2 text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                 />
