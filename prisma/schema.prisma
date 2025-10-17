@@ -81,6 +81,9 @@ model AgenticMessage {
   // Image/File Attachments
   attachments   String?  // JSON array of image attachments (base64, URL, metadata)
 
+  // Reasoning/Thinking Process
+  reasoning     String?  // Model reasoning/thinking process (for reasoning models like DeepSeek-R1, Qwen, GPT-OSS)
+
   // Timestamps
   createdAt     DateTime @default(now()) @map("created_at")
 

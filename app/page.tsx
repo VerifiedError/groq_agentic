@@ -13,6 +13,7 @@ import { SessionSidebar } from '@/components/agentic/session-sidebar'
 import { SessionHeader } from '@/components/agentic/session-header'
 import { MessageCostBadge } from '@/components/agentic/message-cost-badge'
 import { VisionMessage } from '@/components/agentic/vision-message'
+import { ThinkingDisplay, extractThinking } from '@/components/playground/thinking-display'
 
 export default function AgenticPage() {
   const { data: session, status } = useSession()
@@ -31,6 +32,7 @@ export default function AgenticPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
+  const [streamingReasoning, setStreamingReasoning] = useState('') // Track reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
   const [attachments, setAttachments] = useState<Array<{ data: string; name: string; type: string }>>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -160,6 +162,7 @@ export default function AgenticPage() {
     setAttachments([])
     setIsLoading(true)
     setStreamingContent('')
+    setStreamingReasoning('') // Clear previous reasoning
 
     try {
       const response = await fetch('/api/agentic', {
@@ -181,6 +184,7 @@ export default function AgenticPage() {
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let accumulatedContent = ''
+      let accumulatedReasoning = ''
 
       if (reader) {
         while (true) {
@@ -200,12 +204,25 @@ export default function AgenticPage() {
                   setStreamingContent(accumulatedContent)
                 }
 
+                // Capture reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
+                if (data.reasoning) {
+                  accumulatedReasoning += data.reasoning
+                  setStreamingReasoning(accumulatedReasoning)
+                }
+
                 if (data.done) {
                   console.log('[Agentic Page] Stream completed with usage:', data.usage)
+
+                  // Extract <think> tags from content (for Qwen models)
+                  const { thinking: extractedThinking } = extractThinking(accumulatedContent)
+                  if (extractedThinking && !accumulatedReasoning) {
+                    setStreamingReasoning(extractedThinking)
+                  }
 
                   // Reload messages to get the saved messages with cost data
                   await fetchSessionMessages(activeSessionId)
                   setStreamingContent('')
+                  setStreamingReasoning('')
 
                   // Reload sessions to update the session stats in sidebar
                   await fetchSessions()
@@ -221,6 +238,7 @@ export default function AgenticPage() {
       console.error('[Agentic] Error:', error)
       toast.error(error.message || 'Failed to send message')
       setStreamingContent('')
+      setStreamingReasoning('')
     } finally {
       setIsLoading(false)
     }
@@ -287,6 +305,11 @@ export default function AgenticPage() {
                             : 'bg-card border'
                         )}
                       >
+                        {/* Thinking/Reasoning Display (for assistant messages with reasoning) */}
+                        {message.role === 'assistant' && message.reasoning && (
+                          <ThinkingDisplay thinking={message.reasoning} className="mb-3" />
+                        )}
+
                         <div
                           className={cn(
                             'prose dark:prose-invert max-w-none',
@@ -333,6 +356,11 @@ export default function AgenticPage() {
                       <Bot className="h-5 w-5 text-white" />
                     </div>
                     <div className="max-w-[80%] rounded-lg p-4 bg-card border">
+                      {/* Thinking/Reasoning Display (streaming) */}
+                      {streamingReasoning && (
+                        <ThinkingDisplay thinking={streamingReasoning} className="mb-3" defaultExpanded />
+                      )}
+
                       <div className="prose dark:prose-invert max-w-none">
                         {getActiveSession() && isVisionModel(getActiveSession()!.model) ? (
                           <VisionMessage content={streamingContent} />

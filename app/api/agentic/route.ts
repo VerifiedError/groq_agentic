@@ -241,6 +241,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
     let completionTokens = 0
     let cachedTokens = 0
     let fullResponse = ''
+    let fullReasoning = '' // Track reasoning/thinking from models like DeepSeek-R1, Qwen, GPT-OSS
     let executedTools: any[] = []
     let usageBreakdown: any = null
 
@@ -264,14 +265,24 @@ Be concise, direct, and helpful. Format responses in markdown.`
             console.log('[Agentic] ====================================')
 
             const content = chunk.choices[0]?.delta?.content || ''
+            const reasoning = chunk.choices[0]?.delta?.reasoning || ''
 
-            // Accumulate content
+            // Accumulate content and reasoning
             if (content) {
               fullResponse += content
               completionTokens = encode(fullResponse).length
+            }
+            if (reasoning) {
+              fullReasoning += reasoning
+            }
 
-              // Send chunk to client
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`))
+            // Send chunk to client (include reasoning if present)
+            if (content || reasoning) {
+              const data: any = { content }
+              if (reasoning) {
+                data.reasoning = reasoning
+              }
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
             }
 
             // Check for finish reason
@@ -365,6 +376,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                   inputTokens: promptTokens,
                   outputTokens: completionTokens,
                   cachedTokens: cachedTokens,
+                  reasoning: fullReasoning || null, // Save reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
                   toolCalls: executedTools.length > 0 ? JSON.stringify({
                     executed_tools: executedTools,
                     usages: toolUsages,
@@ -475,21 +487,25 @@ Be concise, direct, and helpful. Format responses in markdown.`
               console.log('[Agentic] Tokens:', { promptTokens, completionTokens, cachedTokens })
               console.log('[Agentic] Total cost:', totalMessageCost)
 
-              // Send final metadata
+              // Send final metadata (include reasoning if present)
+              const finalData: any = {
+                done: true,
+                usage: {
+                  promptTokens,
+                  completionTokens,
+                  cachedTokens,
+                  totalTokens: promptTokens + completionTokens,
+                  cost: totalMessageCost,
+                  tokenCost: tokenCosts.totalCost,
+                  toolCost: toolCost,
+                }
+              }
+              if (fullReasoning) {
+                finalData.reasoning = fullReasoning
+              }
               controller.enqueue(
                 encoder.encode(
-                  `data: ${JSON.stringify({
-                    done: true,
-                    usage: {
-                      promptTokens,
-                      completionTokens,
-                      cachedTokens,
-                      totalTokens: promptTokens + completionTokens,
-                      cost: totalMessageCost,
-                      tokenCost: tokenCosts.totalCost,
-                      toolCost: toolCost,
-                    }
-                  })}\n\n`
+                  `data: ${JSON.stringify(finalData)}\n\n`
                 )
               )
             }
