@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Power, Lightbulb, Check, Loader2 } from 'lucide-react'
+import { PresetDropdown } from './preset-dropdown'
 
 interface Model {
   id: string
@@ -99,6 +100,40 @@ export function ModelSettingsModal({
     onClose()
   }
 
+  const handleLoadPreset = (config: any) => {
+    setLocalSettings({
+      ...localSettings,
+      temperature: config.temperature ?? localSettings.temperature,
+      maxTokens: config.maxTokens ?? localSettings.maxTokens,
+      topP: config.topP ?? localSettings.topP,
+    })
+  }
+
+  const handleSavePreset = async (name: string, description?: string) => {
+    const config = {
+      temperature: localSettings.temperature,
+      maxTokens: localSettings.maxTokens,
+      topP: localSettings.topP,
+      frequencyPenalty: 0,
+      presencePenalty: 0,
+    }
+
+    const response = await fetch('/api/presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        description,
+        config: JSON.stringify(config),
+        isDefault: false,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to save preset')
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -180,6 +215,28 @@ export function ModelSettingsModal({
 
           {/* Main Settings Content */}
           <div className="p-6 space-y-6">
+            {/* Preset Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                Preset
+              </label>
+              <PresetDropdown
+                currentSettings={{
+                  temperature: localSettings.temperature,
+                  maxTokens: localSettings.maxTokens,
+                  topP: localSettings.topP,
+                  frequencyPenalty: 0,
+                  presencePenalty: 0,
+                }}
+                onLoadPreset={handleLoadPreset}
+                onSavePreset={handleSavePreset}
+              />
+              <p className="text-xs text-muted-foreground">Load or save configuration presets</p>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
             {/* Model Selector */}
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground flex items-center gap-2">
