@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   SandpackProvider,
   SandpackLayout,
@@ -22,11 +22,24 @@ import {
   Terminal,
   RefreshCw,
   MessageSquare,
+  Undo2,
+  Redo2,
+  History,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ArtifactType } from '@/lib/artifact-templates'
 import { ArtifactChat } from './artifact-chat'
+import { ArtifactVersionHistory } from './artifact-version-history'
+import {
+  initializeVersionHistory,
+  addVersion,
+  undo,
+  redo,
+  goToVersion,
+  getVersionState,
+  clearVersionHistory,
+} from '@/lib/artifact-version-history'
 
 interface ArtifactViewerProps {
   artifact: {
@@ -54,6 +67,57 @@ export function ArtifactViewer({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [currentFiles, setCurrentFiles] = useState(artifact.files)
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [versionState, setVersionState] = useState({
+    canUndo: false,
+    canRedo: false,
+    currentIndex: 0,
+    totalVersions: 0,
+    currentVersion: null
+  })
+
+  // Initialize version history on mount
+  useEffect(() => {
+    if (artifact.id) {
+      initializeVersionHistory(artifact.id, artifact.files, 'Initial version')
+      updateVersionState()
+    }
+  }, [artifact.id])
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Z or Cmd+Z for undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        handleUndo()
+      }
+      // Ctrl+Shift+Z or Cmd+Shift+Z for redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        handleRedo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [artifact.id])
+
+  // Update version state
+  const updateVersionState = () => {
+    if (artifact.id) {
+      const state = getVersionState(artifact.id)
+      setVersionState(state)
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Optional: clear version history on unmount if desired
+      // clearVersionHistory(artifact.id)
+    }
+  }, [])
 
   // Determine Sandpack template based on artifact type
   const getTemplate = () => {
@@ -110,6 +174,9 @@ export function ArtifactViewer({
 
   const handleDelete = () => {
     if (confirm('Are you sure you want to delete this artifact?')) {
+      if (artifact.id) {
+        clearVersionHistory(artifact.id)
+      }
       onDelete?.()
       toast.success('Artifact deleted')
     }
@@ -118,7 +185,54 @@ export function ArtifactViewer({
   const handleApplyChanges = (newFiles: Record<string, string>) => {
     setCurrentFiles(newFiles)
     onSave?.(newFiles)
+
+    // Save version when changes are applied via chat
+    if (artifact.id) {
+      addVersion(artifact.id, newFiles, 'AI modification', 'chat-edit')
+      updateVersionState()
+    }
+
     toast.success('Changes applied successfully')
+  }
+
+  const handleUndo = () => {
+    if (!artifact.id) return
+
+    const previousFiles = undo(artifact.id)
+    if (previousFiles) {
+      setCurrentFiles(previousFiles)
+      onSave?.(previousFiles)
+      updateVersionState()
+      toast.success('Undone to previous version')
+    } else {
+      toast.info('No more versions to undo')
+    }
+  }
+
+  const handleRedo = () => {
+    if (!artifact.id) return
+
+    const nextFiles = redo(artifact.id)
+    if (nextFiles) {
+      setCurrentFiles(nextFiles)
+      onSave?.(nextFiles)
+      updateVersionState()
+      toast.success('Redone to next version')
+    } else {
+      toast.info('No more versions to redo')
+    }
+  }
+
+  const handleGoToVersion = (versionIndex: number) => {
+    if (!artifact.id) return
+
+    const versionFiles = goToVersion(artifact.id, versionIndex)
+    if (versionFiles) {
+      setCurrentFiles(versionFiles)
+      onSave?.(versionFiles)
+      updateVersionState()
+      toast.success(`Restored to version ${versionIndex + 1}`)
+    }
   }
 
   return (
@@ -236,6 +350,49 @@ export function ArtifactViewer({
           >
             <MessageSquare className="h-4 w-4" />
           </button>
+
+          {/* Version Control */}
+          {artifact.id && (
+            <>
+              <div className="h-6 w-px bg-border mx-2" />
+
+              <button
+                onClick={handleUndo}
+                disabled={!versionState.canUndo}
+                className={cn(
+                  'p-2 rounded-lg border transition-colors',
+                  versionState.canUndo
+                    ? 'hover:bg-accent'
+                    : 'opacity-50 cursor-not-allowed'
+                )}
+                title={`Undo (${versionState.currentIndex}/${versionState.totalVersions})`}
+              >
+                <Undo2 className="h-4 w-4" />
+              </button>
+
+              <button
+                onClick={handleRedo}
+                disabled={!versionState.canRedo}
+                className={cn(
+                  'p-2 rounded-lg border transition-colors',
+                  versionState.canRedo
+                    ? 'hover:bg-accent'
+                    : 'opacity-50 cursor-not-allowed'
+                )}
+                title="Redo"
+              >
+                <Redo2 className="h-4 w-4" />
+              </button>
+
+              <button
+                onClick={() => setShowVersionHistory(true)}
+                className="p-2 rounded-lg border hover:bg-accent transition-colors"
+                title={`Version history (${versionState.totalVersions} versions)`}
+              >
+                <History className="h-4 w-4" />
+              </button>
+            </>
+          )}
 
           {/* Fullscreen */}
           <button
@@ -370,6 +527,17 @@ export function ArtifactViewer({
             isOpen={showChat}
           />
         </div>
+      )}
+
+      {/* Version History Modal */}
+      {artifact.id && (
+        <ArtifactVersionHistory
+          artifactId={artifact.id}
+          isOpen={showVersionHistory}
+          onClose={() => setShowVersionHistory(false)}
+          onSelectVersion={handleGoToVersion}
+          currentIndex={versionState.currentIndex}
+        />
       )}
     </div>
   )
