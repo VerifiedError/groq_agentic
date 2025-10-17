@@ -106,21 +106,26 @@ export async function POST(request: NextRequest) {
           })
 
           let fullContent = ''
+          let fullReasoning = ''
           let usage: any = null
 
           // Stream the response
           for await (const chunk of completion) {
             const content = chunk.choices[0]?.delta?.content || ''
+            const reasoning = chunk.choices[0]?.delta?.reasoning || ''
+
             fullContent += content
+            fullReasoning += reasoning
 
             // Check if we have usage info (comes in final chunk)
             if (chunk.x_groq?.usage) {
               usage = chunk.x_groq.usage
             }
 
-            // Send chunk to client
+            // Send chunk to client (include reasoning if present)
             const data = {
               content,
+              reasoning: reasoning || undefined,
               done: false,
             }
 
@@ -143,6 +148,7 @@ export async function POST(request: NextRequest) {
           // Send final message with usage and cost
           const finalData = {
             content: '',
+            reasoning: fullReasoning || undefined,
             done: true,
             usage: usage ? {
               prompt_tokens: usage.prompt_tokens || 0,

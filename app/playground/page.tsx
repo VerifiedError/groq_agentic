@@ -47,6 +47,7 @@ interface Model {
 interface ModelResponse {
   modelId: string
   content: string
+  reasoning?: string // Model reasoning/thinking process (for reasoning models)
   cost?: number
   toolCalls?: any[]
   audioData?: string // Base64 audio data for TTS models
@@ -572,6 +573,7 @@ export default function PlaygroundChatPage() {
           const reader = response.body?.getReader()
           const decoder = new TextDecoder()
           let accumulatedContent = ''
+          let accumulatedReasoning = ''
 
           if (reader) {
             while (true) {
@@ -592,9 +594,13 @@ export default function PlaygroundChatPage() {
                         [modelId]: accumulatedContent
                       }))
                     }
+                    if (data.reasoning) {
+                      accumulatedReasoning += data.reasoning
+                    }
                     if (data.done) {
                       modelResponses[modelId] = {
                         content: accumulatedContent,
+                        reasoning: accumulatedReasoning || data.reasoning || undefined,
                         cost: data.cost || 0,
                         toolCalls: [],
                         audioData: data.audioData // Store audio data if present
@@ -620,20 +626,32 @@ export default function PlaygroundChatPage() {
       // Wait for all streams to complete
       await Promise.all(streamPromises)
 
-      // Extract thinking from responses
+      // Collect reasoning from all model responses
+      const reasoningParts: string[] = []
+      Object.values(modelResponses).forEach(r => {
+        if (r.reasoning) {
+          reasoningParts.push(r.reasoning)
+        }
+      })
+
+      // Extract thinking from content (for models using <think> tags)
       const fullContent = Object.values(modelResponses).map(r => r.content).join('\n\n---\n\n')
-      const { thinking, cleanContent } = extractThinking(fullContent)
+      const { thinking: contentThinking, cleanContent } = extractThinking(fullContent)
+
+      // Combine reasoning field and extracted thinking
+      const combinedReasoning = [...reasoningParts, contentThinking].filter(Boolean).join('\n\n---\n\n')
 
       // Create assistant message with all model responses
       const assistantMessage: Message = {
         id: `msg-${Date.now()}`,
         role: 'assistant',
         content: cleanContent || fullContent, // Use cleaned content if thinking was extracted
-        thinking: thinking || undefined, // Store thinking separately
+        thinking: combinedReasoning || undefined, // Store combined reasoning
         timestamp: new Date(),
         responses: selectedModels.map(modelId => ({
           modelId,
           content: modelResponses[modelId]?.content || '',
+          reasoning: modelResponses[modelId]?.reasoning,
           cost: modelResponses[modelId]?.cost || 0,
           toolCalls: modelResponses[modelId]?.toolCalls || [],
           audioData: modelResponses[modelId]?.audioData
