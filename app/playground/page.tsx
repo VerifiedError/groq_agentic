@@ -1,9 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Play, Trash2, Copy, Loader2, Settings2, ChevronDown, ChevronUp, BarChart3, Clock } from 'lucide-react'
+import {
+  Image as ImageIcon,
+  Monitor,
+  Layout,
+  Grid3x3,
+  Box,
+  Settings,
+  Paperclip,
+  Wand2,
+  Globe,
+  ArrowUp,
+  Menu,
+  PenSquare,
+  Plus,
+  Command,
+  Search,
+  MoreVertical,
+  Loader2
+} from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 
@@ -18,95 +36,53 @@ interface Model {
 }
 
 interface Message {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
-
-interface RequestLog {
   id: string
+  role: 'user' | 'assistant'
+  content: string
+  cost?: number
   timestamp: Date
-  model: string
-  modelDisplayName: string
-  prompt: string
-  promptPreview: string
-  inputTokens: number
-  outputTokens: number
-  cachedTokens: number
-  totalTokens: number
-  cost: number
-  cacheHitRate: number | null
 }
 
-export default function PlaygroundPage() {
+interface ChatSession {
+  id: string
+  title: string
+  messages: Message[]
+  model: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export default function PlaygroundChatPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
+  // Sidebar state
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
+  const [activeChatId, setActiveChatId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+
   // Models
   const [models, setModels] = useState<Model[]>([])
-  const [isLoadingModels, setIsLoadingModels] = useState(true)
   const [selectedModel, setSelectedModel] = useState('')
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
 
-  // Input
-  const [systemPrompt, setSystemPrompt] = useState('')
-  const [userPrompt, setUserPrompt] = useState('')
-  const [showParams, setShowParams] = useState(false)
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [streamingContent, setStreamingContent] = useState('')
 
-  // Parameters
+  // Settings
+  const [showSettings, setShowSettings] = useState(false)
   const [temperature, setTemperature] = useState(1)
   const [maxTokens, setMaxTokens] = useState(1024)
   const [topP, setTopP] = useState(1)
-  const [stop, setStop] = useState('')
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
 
-  // Output
-  const [output, setOutput] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [usage, setUsage] = useState<any>(null)
-  const [cost, setCost] = useState<number | null>(null)
-
-  // Request history
-  const [requestHistory, setRequestHistory] = useState<RequestLog[]>([])
-  const [showHistory, setShowHistory] = useState(false)
-
-  // Load request history and prompts from localStorage
-  useEffect(() => {
-    try {
-      // Load request history
-      const savedHistory = localStorage.getItem('playground-request-history')
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory)
-        // Convert timestamp strings back to Date objects
-        const history = parsed.map((log: any) => ({
-          ...log,
-          timestamp: new Date(log.timestamp)
-        }))
-        setRequestHistory(history)
-      }
-
-      // Load saved prompts
-      const savedSystemPrompt = localStorage.getItem('playground-system-prompt')
-      if (savedSystemPrompt) {
-        setSystemPrompt(savedSystemPrompt)
-      }
-
-      const savedUserPrompt = localStorage.getItem('playground-user-prompt')
-      if (savedUserPrompt) {
-        setUserPrompt(savedUserPrompt)
-      }
-    } catch (error) {
-      console.error('Failed to load from localStorage:', error)
-    }
-  }, [])
-
-  // Save request history to localStorage
-  useEffect(() => {
-    if (requestHistory.length > 0) {
-      try {
-        localStorage.setItem('playground-request-history', JSON.stringify(requestHistory))
-      } catch (error) {
-        console.error('Failed to save request history:', error)
-      }
-    }
-  }, [requestHistory])
+  // Refs
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -115,601 +91,469 @@ export default function PlaygroundPage() {
     }
   }, [status, router])
 
-  // Fetch models
+  // Load models
   useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        setIsLoadingModels(true)
-        const response = await fetch('/api/models')
-        if (!response.ok) throw new Error('Failed to fetch models')
-
-        const data = await response.json()
-        setModels(data.models || [])
-
-        // Set default model
-        if (data.models && data.models.length > 0) {
-          setSelectedModel(data.models[0].id)
-        }
-      } catch (error) {
-        console.error('Error fetching models:', error)
-        toast.error('Failed to load models')
-      } finally {
-        setIsLoadingModels(false)
-      }
-    }
-
     if (status === 'authenticated') {
       fetchModels()
     }
   }, [status])
 
-  const handleGenerate = async () => {
-    if (!userPrompt.trim()) {
-      toast.error('Please enter a prompt')
-      return
+  // Load chat sessions from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('playground-chat-sessions')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        const sessions = parsed.map((s: any) => ({
+          ...s,
+          createdAt: new Date(s.createdAt),
+          updatedAt: new Date(s.updatedAt),
+          messages: s.messages.map((m: any) => ({
+            ...m,
+            timestamp: new Date(m.timestamp)
+          }))
+        }))
+        setChatSessions(sessions)
+      }
+    } catch (error) {
+      console.error('Failed to load chat sessions:', error)
+    }
+  }, [])
+
+  // Save chat sessions to localStorage
+  useEffect(() => {
+    if (chatSessions.length > 0) {
+      localStorage.setItem('playground-chat-sessions', JSON.stringify(chatSessions))
+    }
+  }, [chatSessions])
+
+  // Load active chat messages
+  useEffect(() => {
+    if (activeChatId) {
+      const activeChat = chatSessions.find(s => s.id === activeChatId)
+      if (activeChat) {
+        setMessages(activeChat.messages)
+        setSelectedModel(activeChat.model)
+      }
+    }
+  }, [activeChatId, chatSessions])
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, streamingContent])
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    }
+  }, [input])
+
+  const fetchModels = async () => {
+    try {
+      setIsLoadingModels(true)
+      const response = await fetch('/api/models')
+      const data = await response.json()
+      setModels(data.models || [])
+      if (data.models?.length > 0 && !selectedModel) {
+        setSelectedModel(data.models[0].id)
+      }
+    } catch (error) {
+      console.error('Failed to fetch models:', error)
+      toast.error('Failed to load models')
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
+
+  const createNewChat = () => {
+    // Ensure we have a model selected
+    const modelToUse = selectedModel || models[0]?.id || ''
+
+    const newChat: ChatSession = {
+      id: `chat-${Date.now()}`,
+      title: 'Untitled Chat',
+      messages: [],
+      model: modelToUse,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    setChatSessions(prev => [newChat, ...prev])
+    setActiveChatId(newChat.id)
+    setMessages([])
+    setInput('')
+    setStreamingContent('')
+
+    // Set the model if not already set
+    if (!selectedModel && modelToUse) {
+      setSelectedModel(modelToUse)
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!input.trim() || isGenerating || !selectedModel) return
+
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: input.trim(),
+      timestamp: new Date()
     }
 
-    if (!selectedModel) {
-      toast.error('Please select a model')
-      return
-    }
-
+    // Add user message
+    setMessages(prev => [...prev, userMessage])
+    setInput('')
     setIsGenerating(true)
-    setOutput('')
-    setUsage(null)
-    setCost(null)
+    setStreamingContent('')
 
     try {
-      // Build messages array
-      const messages: Message[] = []
-      if (systemPrompt.trim()) {
-        messages.push({ role: 'system', content: systemPrompt.trim() })
-      }
-      messages.push({ role: 'user', content: userPrompt.trim() })
-
-      // Parse stop sequences
-      const stopSequences = stop
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-
       const response = await fetch('/api/playground', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: selectedModel,
-          messages,
+          messages: [
+            { role: 'user', content: input.trim() }
+          ],
           temperature,
           maxTokens,
-          topP,
-          stop: stopSequences.length > 0 ? stopSequences : undefined,
-        }),
+          topP
+        })
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to generate response')
+        throw new Error('Failed to generate response')
       }
 
-      // Read streaming response
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
+      let accumulatedContent = ''
 
-      if (!reader) {
-        throw new Error('No response body')
-      }
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+          const chunk = decoder.decode(value)
+          const lines = chunk.split('\n')
 
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-
-              if (data.error) {
-                throw new Error(data.error)
-              }
-
-              if (data.content) {
-                setOutput((prev) => prev + data.content)
-              }
-
-              if (data.done) {
-                if (data.usage) {
-                  setUsage(data.usage)
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+                if (data.content) {
+                  accumulatedContent += data.content
+                  setStreamingContent(accumulatedContent)
                 }
-                if (data.cost !== undefined) {
-                  const finalCost = typeof data.cost === 'number' ? data.cost : parseFloat(data.cost) || 0
-                  setCost(finalCost)
+                if (data.done) {
+                  const assistantMessage: Message = {
+                    id: `msg-${Date.now()}`,
+                    role: 'assistant',
+                    content: accumulatedContent,
+                    cost: data.cost || 0,
+                    timestamp: new Date()
+                  }
+                  setMessages(prev => [...prev, assistantMessage])
+                  setStreamingContent('')
 
-                  // Save to request history
-                  if (data.usage) {
-                    const promptPreview = userPrompt.trim().substring(0, 100) + (userPrompt.trim().length > 100 ? '...' : '')
-                    const cachedTokens = data.usage.cached_tokens || 0
-                    const inputTokens = data.usage.prompt_tokens || 0
-                    const cacheHitRate = cachedTokens > 0 && inputTokens > 0
-                      ? (cachedTokens / inputTokens) * 100
-                      : null
-
-                    const selectedModelObj = models.find(m => m.id === selectedModel)
-
-                    const newLog: RequestLog = {
-                      id: Date.now().toString(),
-                      timestamp: new Date(),
-                      model: selectedModel,
-                      modelDisplayName: selectedModelObj?.displayName || selectedModel,
-                      prompt: userPrompt.trim(),
-                      promptPreview,
-                      inputTokens: data.usage.prompt_tokens || 0,
-                      outputTokens: data.usage.completion_tokens || 0,
-                      cachedTokens,
-                      totalTokens: data.usage.total_tokens || 0,
-                      cost: finalCost,
-                      cacheHitRate,
-                    }
-
-                    setRequestHistory(prev => [newLog, ...prev].slice(0, 50)) // Keep last 50 requests
+                  // Update chat session
+                  if (activeChatId) {
+                    setChatSessions(prev => prev.map(chat =>
+                      chat.id === activeChatId
+                        ? {
+                            ...chat,
+                            messages: [...chat.messages, userMessage, assistantMessage],
+                            updatedAt: new Date(),
+                            title: chat.title === 'Untitled Chat'
+                              ? input.trim().slice(0, 50)
+                              : chat.title
+                          }
+                        : chat
+                    ))
                   }
                 }
+              } catch (e) {
+                // Ignore parse errors
               }
-            } catch (e) {
-              // Skip invalid JSON
             }
           }
         }
       }
-
-      toast.success('Response generated')
     } catch (error: any) {
-      console.error('Generation error:', error)
+      console.error('Error:', error)
       toast.error(error.message || 'Failed to generate response')
+      setStreamingContent('')
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const handleClear = () => {
-    setUserPrompt('')
-    setOutput('')
-    setUsage(null)
-    setCost(null)
-  }
+  const quickActions = [
+    { icon: ImageIcon, label: 'Image' },
+    { icon: Monitor, label: 'Interactive App' },
+    { icon: Layout, label: 'Landing Page' },
+    { icon: Grid3x3, label: '2D Game' },
+    { icon: Box, label: '3D Game' }
+  ]
 
-  const handleCopyOutput = () => {
-    navigator.clipboard.writeText(output)
-    toast.success('Output copied to clipboard')
-  }
+  // Group chats by date
+  const groupedChats = chatSessions.reduce((acc, chat) => {
+    const now = new Date()
+    const chatDate = new Date(chat.updatedAt)
+    const diffDays = Math.floor((now.getTime() - chatDate.getTime()) / (1000 * 60 * 60 * 24))
 
-  const handleClearHistory = () => {
-    setRequestHistory([])
-    localStorage.removeItem('playground-request-history')
-    toast.success('Request history cleared')
-  }
+    let group = 'Older'
+    if (diffDays === 0) group = 'Today'
+    else if (diffDays <= 30) group = 'Previous 30 Days'
 
-  const handleSystemPromptBlur = () => {
-    try {
-      localStorage.setItem('playground-system-prompt', systemPrompt)
-    } catch (error) {
-      console.error('Failed to save system prompt:', error)
+    if (!acc[group]) acc[group] = []
+    acc[group].push(chat)
+    return acc
+  }, {} as Record<string, ChatSession[]>)
+
+  const filteredChats = Object.entries(groupedChats).reduce((acc, [group, chats]) => {
+    const filtered = chats.filter(chat =>
+      chat.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    if (filtered.length > 0) {
+      acc[group] = filtered
     }
-  }
+    return acc
+  }, {} as Record<string, ChatSession[]>)
 
-  const handleUserPromptBlur = () => {
-    try {
-      localStorage.setItem('playground-user-prompt', userPrompt)
-    } catch (error) {
-      console.error('Failed to save user prompt:', error)
-    }
-  }
-
-  // Calculate overall statistics
-  const overallStats = requestHistory.length > 0 ? {
-    totalRequests: requestHistory.length,
-    totalInputTokens: requestHistory.reduce((sum, log) => sum + log.inputTokens, 0),
-    totalOutputTokens: requestHistory.reduce((sum, log) => sum + log.outputTokens, 0),
-    totalCachedTokens: requestHistory.reduce((sum, log) => sum + log.cachedTokens, 0),
-    totalCost: requestHistory.reduce((sum, log) => sum + log.cost, 0),
-    avgCacheHitRate: requestHistory.filter(log => log.cacheHitRate !== null).length > 0
-      ? requestHistory.filter(log => log.cacheHitRate !== null).reduce((sum, log) => sum + (log.cacheHitRate || 0), 0) / requestHistory.filter(log => log.cacheHitRate !== null).length
-      : null
-  } : null
-
-  if (status === 'loading' || isLoadingModels) {
+  if (status === 'loading') {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">Playground</h1>
-              <p className="text-xs text-muted-foreground">
-                Test Groq models with custom parameters
-              </p>
-            </div>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Sidebar */}
+      <aside
+        className={`flex flex-shrink-0 flex-col bg-background border-r transition-all duration-200 ease-in-out ${
+          sidebarExpanded ? 'w-64' : 'w-[54px]'
+        }`}
+      >
+        <div className="flex h-full w-full flex-col gap-2 p-2">
+          {/* Sidebar buttons */}
+          <div className="flex w-full flex-col items-stretch gap-0">
+            <button
+              onClick={() => setSidebarExpanded(!sidebarExpanded)}
+              className="inline-flex items-center justify-center rounded-md font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 w-9 shrink-0"
+              aria-label="Toggle sidebar"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <button
+              onClick={createNewChat}
+              className="inline-flex items-center justify-center rounded-md font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 w-9 shrink-0"
+              aria-label="New Chat"
+            >
+              <PenSquare className="h-5 w-5" />
+            </button>
+          </div>
 
-            {/* Model Selector */}
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium">Model:</label>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="px-3 py-2 bg-background border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                {models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.displayName}
-                  </option>
+          {/* Expanded sidebar content */}
+          {sidebarExpanded && (
+            <div className="flex-1 min-h-0 flex flex-col gap-2">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search rooms..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-lg border bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
+              </div>
+
+              {/* Chat history */}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {Object.entries(filteredChats).map(([group, chats]) => (
+                  <div key={group} className="mb-4">
+                    <h4 className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground px-3 py-2">
+                      {group}
+                    </h4>
+                    <div className="flex flex-col gap-0.5">
+                      {chats.map(chat => (
+                        <div
+                          key={chat.id}
+                          className={`group relative flex h-9 items-center rounded-lg transition-colors pl-3 ${
+                            activeChatId === chat.id
+                              ? 'bg-accent/80 dark:bg-accent text-foreground'
+                              : 'hover:bg-accent/50'
+                          }`}
+                        >
+                          <button
+                            onClick={() => setActiveChatId(chat.id)}
+                            className="flex-1 text-left truncate text-sm"
+                          >
+                            {chat.title}
+                          </button>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-accent rounded"
+                            aria-label="Chat actions"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
-              </select>
-
-              <button
-                onClick={() => setShowParams(!showParams)}
-                className="p-2 hover:bg-accent rounded-md transition-colors"
-                title="Toggle parameters"
-              >
-                <Settings2 className="w-5 h-5" />
-              </button>
+              </div>
             </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="flex-shrink-0 flex items-center gap-2 p-4 border-b">
+          <button
+            onClick={() => {/* Open model selector */}}
+            className="inline-flex items-center justify-center gap-2 px-3 h-9 rounded-md border bg-background shadow-sm hover:bg-accent transition-colors text-sm font-medium"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Model</span>
+            <span className="hidden md:flex items-center gap-0.5 text-xs">
+              <kbd className="h-4 px-1 rounded border bg-muted">⌘</kbd>
+              <kbd className="h-4 px-1 rounded border bg-muted">K</kbd>
+            </span>
+          </button>
+        </div>
+
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="max-w-4xl mx-auto space-y-6">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div className={`rounded-lg p-4 max-w-[80%] ${
+                  message.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card border'
+                }`}>
+                  <ReactMarkdown className="prose dark:prose-invert max-w-none">
+                    {message.content}
+                  </ReactMarkdown>
+                  {message.cost !== undefined && message.cost > 0 && (
+                    <div className="mt-2 text-xs opacity-70">
+                      Cost: ${message.cost.toFixed(6)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Streaming message */}
+            {streamingContent && (
+              <div className="flex gap-3 justify-start">
+                <div className="rounded-lg p-4 max-w-[80%] bg-card border">
+                  <ReactMarkdown className="prose dark:prose-invert max-w-none">
+                    {streamingContent}
+                  </ReactMarkdown>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Generating...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
         </div>
 
-        {/* Overall Usage Statistics */}
-        {overallStats && (
-          <div className="container mx-auto px-4 py-1.5">
-            <div className="flex items-center justify-between px-3 py-2 bg-muted/30 rounded-md border text-xs">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <BarChart3 className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">Total:</span>
-                  <span className="font-medium">{overallStats.totalRequests} requests</span>
-                </div>
-                <div className="text-muted-foreground">|</div>
-                <div>
-                  <span className="text-muted-foreground">Tokens:</span>
-                  <span className="ml-1.5 font-medium">{overallStats.totalInputTokens.toLocaleString()}↑ / {overallStats.totalOutputTokens.toLocaleString()}↓</span>
-                  {overallStats.totalCachedTokens > 0 && (
-                    <span className="ml-1.5 text-green-600 dark:text-green-400 font-medium">
-                      ({overallStats.totalCachedTokens.toLocaleString()} cached)
-                    </span>
-                  )}
-                </div>
-                <div className="text-muted-foreground">|</div>
-                <div>
-                  <span className="text-muted-foreground">Cost:</span>
-                  <span className="ml-1.5 font-medium text-primary">${overallStats.totalCost.toFixed(4)}</span>
-                </div>
-                {overallStats.avgCacheHitRate !== null && (
-                  <>
-                    <div className="text-muted-foreground">|</div>
-                    <div>
-                      <span className="text-muted-foreground">Avg Cache:</span>
-                      <span className="ml-1.5 font-medium text-green-600 dark:text-green-400">
-                        {overallStats.avgCacheHitRate.toFixed(1)}%
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-              <button
-                onClick={handleClearHistory}
-                className="text-xs px-2 py-1 hover:bg-accent rounded transition-colors text-muted-foreground hover:text-foreground"
-                title="Clear history"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="container mx-auto px-4 py-3 h-full">
-          <div className="grid grid-cols-2 gap-4 h-full">
-            {/* Left: Input */}
-            <div className="flex flex-col gap-3 h-full">
-              {/* System Prompt */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5">
-                  System Prompt (Optional)
-                </label>
-                <textarea
-                  value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
-                  onBlur={handleSystemPromptBlur}
-                  placeholder="You are a helpful assistant..."
-                  className="w-full h-20 px-3 py-2 text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              {/* User Prompt */}
-              <div className="flex-1 flex flex-col min-h-0">
-                <label className="block text-sm font-medium mb-1.5">
-                  User Prompt
-                </label>
-                <textarea
-                  value={userPrompt}
-                  onChange={(e) => setUserPrompt(e.target.value)}
-                  onBlur={handleUserPromptBlur}
-                  placeholder="Enter your prompt here..."
-                  className="flex-1 w-full px-3 py-2 text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              {/* Parameters Panel */}
-              {showParams && (
-                <div className="border rounded-lg p-3 space-y-2.5 bg-card">
-                  <h3 className="text-sm font-semibold mb-3">Parameters</h3>
-
-                  {/* Temperature */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm">Temperature</label>
-                      <span className="text-sm text-muted-foreground">
-                        {temperature}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      value={temperature}
-                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Max Tokens */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm">Max Tokens</label>
-                      <span className="text-sm text-muted-foreground">
-                        {maxTokens}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="32000"
-                      step="100"
-                      value={maxTokens}
-                      onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Top P */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-sm">Top P</label>
-                      <span className="text-sm text-muted-foreground">
-                        {topP}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={topP}
-                      onChange={(e) => setTopP(parseFloat(e.target.value))}
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Stop Sequences */}
-                  <div>
-                    <label className="text-sm block mb-1">
-                      Stop Sequences (comma-separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={stop}
-                      onChange={(e) => setStop(e.target.value)}
-                      placeholder="e.g., \n, END"
-                      className="w-full px-3 py-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-2">
-                <button
-                  onClick={handleGenerate}
-                  disabled={isGenerating || !userPrompt.trim()}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Play className="w-4 h-4" />
-                      Generate
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleClear}
-                  disabled={isGenerating}
-                  className="px-4 py-2 border rounded-md hover:bg-accent transition-colors disabled:opacity-50"
-                  title="Clear"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Right: Output */}
-            <div className="flex flex-col gap-2.5 h-full min-h-0">
-              <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium">Output</label>
-                {output && (
+        {/* Input area */}
+        <div className="flex-shrink-0 p-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="rounded-xl overflow-hidden p-2 border bg-card shadow-lg">
+              {/* Quick actions */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-2">
+                {quickActions.map((action) => (
                   <button
-                    onClick={handleCopyOutput}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm border rounded-md hover:bg-accent transition-colors"
+                    key={action.label}
+                    className="inline-flex items-center gap-2 px-3 h-8 rounded-full border bg-background shadow-sm hover:bg-accent transition-colors text-xs font-medium whitespace-nowrap"
                   >
-                    <Copy className="w-3.5 h-3.5" />
-                    Copy
+                    <action.icon className="h-4 w-4" />
+                    <span>{action.label}</span>
                   </button>
-                )}
+                ))}
               </div>
 
-              {/* Output Display */}
-              <div className="flex-1 p-3 bg-card border rounded-lg overflow-y-auto min-h-0">
-                {output ? (
-                  <div className="prose prose-sm max-w-none dark:prose-invert">
-                    <ReactMarkdown>{output}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Output will appear here...
-                  </p>
-                )}
+              {/* Input */}
+              <div className="rounded-lg bg-background border focus-within:bg-accent transition-colors">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSubmit()
+                    }
+                  }}
+                  placeholder="Start a new message..."
+                  className="w-full bg-transparent px-2 py-2 resize-none focus:outline-none text-sm"
+                  rows={1}
+                  style={{ maxHeight: '200px' }}
+                  disabled={isGenerating}
+                />
               </div>
 
-              {/* Stats */}
-              {(usage || cost !== null) && (
-                <div className="p-3 bg-card border rounded-lg">
-                  <h3 className="text-sm font-semibold mb-1.5">Statistics</h3>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    {usage && (
-                      <>
-                        <div>
-                          <span className="text-muted-foreground">Input Tokens:</span>
-                          <span className="ml-2 font-medium">
-                            {usage.prompt_tokens?.toLocaleString() || 0}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Output Tokens:</span>
-                          <span className="ml-2 font-medium">
-                            {usage.completion_tokens?.toLocaleString() || 0}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Total Tokens:</span>
-                          <span className="ml-2 font-medium">
-                            {usage.total_tokens?.toLocaleString() || 0}
-                          </span>
-                        </div>
-                        {usage.cached_tokens > 0 && (
-                          <>
-                            <div>
-                              <span className="text-muted-foreground">Cached Tokens:</span>
-                              <span className="ml-2 font-medium text-green-600 dark:text-green-400">
-                                {usage.cached_tokens?.toLocaleString() || 0}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Cache Hit Rate:</span>
-                              <span className="ml-2 font-medium text-green-600 dark:text-green-400">
-                                {((usage.cached_tokens / (usage.prompt_tokens || 1)) * 100).toFixed(1)}%
-                              </span>
-                            </div>
-                          </>
-                        )}
-                      </>
-                    )}
-                    {cost !== null && typeof cost === 'number' && (
-                      <div>
-                        <span className="text-muted-foreground">Cost:</span>
-                        <span className="ml-2 font-medium text-primary">
-                          ${cost.toFixed(6)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              {/* Toolbar */}
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    aria-label="Settings"
+                  >
+                    <Settings className="h-5 w-5" />
+                  </button>
+                  <button
+                    className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    aria-label="Attach file"
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </button>
+                  <button
+                    className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    aria-label="Drawing"
+                  >
+                    <Wand2 className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                    className="inline-flex items-center gap-2 px-3 h-9 rounded-md hover:bg-accent transition-colors"
+                  >
+                    <Globe className="h-5 w-5" />
+                    <span className="text-sm">Web search</span>
+                    <div className={`w-10 h-5 rounded-full transition-colors ${webSearchEnabled ? 'bg-primary' : 'bg-muted'}`}>
+                      <div className={`h-4 w-4 rounded-full bg-white shadow transform transition-transform m-0.5 ${webSearchEnabled ? 'translate-x-5' : ''}`} />
+                    </div>
+                  </button>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Request History */}
-          {requestHistory.length > 0 && (
-            <div className="mt-3">
-              <div className="flex items-center justify-between mb-3">
                 <button
-                  onClick={() => setShowHistory(!showHistory)}
-                  className="flex items-center gap-2 text-sm font-medium hover:text-primary transition-colors"
+                  onClick={handleSubmit}
+                  disabled={!input.trim() || isGenerating}
+                  className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-all"
                 >
-                  <Clock className="w-4 h-4" />
-                  Request History ({requestHistory.length})
-                  {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  <ArrowUp className="h-4 w-4" />
                 </button>
               </div>
-
-              {showHistory && (
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="max-h-64 overflow-y-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-muted/50 sticky top-0">
-                        <tr className="border-b">
-                          <th className="text-left p-2 font-medium">Time</th>
-                          <th className="text-left p-2 font-medium">Model</th>
-                          <th className="text-left p-2 font-medium">Prompt</th>
-                          <th className="text-right p-2 font-medium">In</th>
-                          <th className="text-right p-2 font-medium">Out</th>
-                          <th className="text-right p-2 font-medium">Cached</th>
-                          <th className="text-right p-2 font-medium">Cache %</th>
-                          <th className="text-right p-2 font-medium">Cost</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {requestHistory.map((log) => (
-                          <tr key={log.id} className="border-b hover:bg-muted/30 transition-colors">
-                            <td className="p-2 text-muted-foreground whitespace-nowrap">
-                              {log.timestamp.toLocaleTimeString()}
-                            </td>
-                            <td className="p-2 text-muted-foreground whitespace-nowrap">
-                              {log.modelDisplayName}
-                            </td>
-                            <td className="p-2 max-w-xs truncate" title={log.prompt}>
-                              {log.promptPreview}
-                            </td>
-                            <td className="p-2 text-right font-mono">
-                              {log.inputTokens.toLocaleString()}
-                            </td>
-                            <td className="p-2 text-right font-mono">
-                              {log.outputTokens.toLocaleString()}
-                            </td>
-                            <td className="p-2 text-right font-mono text-green-600 dark:text-green-400">
-                              {log.cachedTokens > 0 ? log.cachedTokens.toLocaleString() : '-'}
-                            </td>
-                            <td className="p-2 text-right font-mono text-green-600 dark:text-green-400">
-                              {log.cacheHitRate !== null ? `${log.cacheHitRate.toFixed(1)}%` : '-'}
-                            </td>
-                            <td className="p-2 text-right font-mono text-primary">
-                              ${log.cost.toFixed(4)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
