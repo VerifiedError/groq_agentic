@@ -52,21 +52,23 @@ export function WorkspaceIDE({ request, onClose, model = 'llama-3.3-70b-versatil
 
   const operationsEndRef = useRef<HTMLDivElement>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const hasStartedRef = useRef(false)
 
   // Auto-scroll operations log
   useEffect(() => {
     operationsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [workspaceState.operations])
 
-  // Start building on mount
+  // Start building on mount (only once)
   useEffect(() => {
-    if (!isPaused) {
+    if (!hasStartedRef.current && !isPaused) {
+      hasStartedRef.current = true
       startBuilding()
     }
     return () => {
       abortControllerRef.current?.abort()
     }
-  }, [request])
+  }, [])
 
   const startBuilding = async () => {
     setIsBuilding(true)
@@ -162,6 +164,7 @@ export function WorkspaceIDE({ request, onClose, model = 'llama-3.3-70b-versatil
       setIsBuilding(false)
     } else if (isPaused) {
       setIsPaused(false)
+      hasStartedRef.current = false // Allow restart
       startBuilding()
     }
   }
