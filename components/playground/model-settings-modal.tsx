@@ -18,6 +18,7 @@ interface ModelSettingsModalProps {
     temperature: number
     maxTokens: number
     topP: number
+    chatMemory: number
     systemPrompt: string
     label: string
   }
@@ -444,6 +445,60 @@ export function ModelSettingsModal({
                 </div>
               </div>
             </details>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+            {/* Chat Memory */}
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-semibold text-foreground">Chat Memory</label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Number of previous messages to include in context
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={localSettings.chatMemory}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value)
+                    if (value >= 0 && value <= 50) {
+                      setLocalSettings({ ...localSettings, chatMemory: value })
+                    }
+                  }}
+                  min="0"
+                  max="50"
+                  step="1"
+                  className="w-24 px-4 py-2.5 text-sm text-center border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                />
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => {
+                      const newValue = Math.min(50, localSettings.chatMemory + 1)
+                      setLocalSettings({ ...localSettings, chatMemory: newValue })
+                    }}
+                    className="px-3 py-1 text-xs border rounded hover:bg-accent transition-colors"
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newValue = Math.max(0, localSettings.chatMemory - 1)
+                      setLocalSettings({ ...localSettings, chatMemory: newValue })
+                    }}
+                    className="px-3 py-1 text-xs border rounded hover:bg-accent transition-colors"
+                  >
+                    −
+                  </button>
+                </div>
+                <div className="flex-1 text-sm text-muted-foreground">
+                  {localSettings.chatMemory === 0 && 'No context (stateless)'}
+                  {localSettings.chatMemory === 1 && '1 message'}
+                  {localSettings.chatMemory > 1 && `${localSettings.chatMemory} messages`}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons Footer */}

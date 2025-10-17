@@ -373,6 +373,7 @@ export default function PlaygroundChatPage() {
     temperature: 1,
     maxTokens: 1024,
     topP: 1,
+    chatMemory: 8,
     systemPrompt: '',
     label: models.find(m => m.id === modelId)?.displayName || modelId
   })
@@ -691,6 +692,10 @@ export default function PlaygroundChatPage() {
       // Start concurrent streams for all selected models
       const streamPromises = selectedModels.map(async (modelId) => {
         try {
+          // Get model-specific settings
+          const settings = getModelSettings(modelId)
+          const { temperature: modelTemp, maxTokens: modelMaxTokens, topP: modelTopP, chatMemory } = settings
+
           // Construct messages array with system prompts
           const apiMessages: any[] = []
 
@@ -704,6 +709,25 @@ export default function PlaygroundChatPage() {
             apiMessages.push({ role: 'system', content: `[user_prompt]\n${sessionPrompt}` })
           }
 
+          // Add previous messages based on chatMemory setting
+          if (chatMemory > 0) {
+            // Get the last N messages (excluding the current user message we're about to add)
+            const previousMessages = messages.slice(-chatMemory)
+            previousMessages.forEach(msg => {
+              // Add previous conversation history
+              if (msg.responses) {
+                // This is an assistant message with multiple model responses
+                const modelResponse = msg.responses.find(r => r.modelId === modelId)
+                if (modelResponse) {
+                  apiMessages.push({ role: 'assistant', content: modelResponse.content })
+                }
+              } else {
+                // This is a user message
+                apiMessages.push({ role: msg.role, content: msg.content })
+              }
+            })
+          }
+
           // Add the current user message
           apiMessages.push({ role: 'user', content: messageContent })
 
@@ -713,9 +737,9 @@ export default function PlaygroundChatPage() {
             body: JSON.stringify({
               model: modelId,
               messages: apiMessages,
-              temperature,
-              maxTokens,
-              topP
+              temperature: modelTemp,
+              maxTokens: modelMaxTokens,
+              topP: modelTopP
             })
           })
 
