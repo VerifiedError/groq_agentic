@@ -54,6 +54,19 @@ export const GROQ_PRICING = {
     input: 0.29,
     output: 0.59,
   },
+  // Reasoning Models
+  'deepseek-r1-distill-llama-70b': {
+    input: 0, // Free during preview
+    output: 0,
+  },
+  'deepseek-r1-distill-qwen-32b': {
+    input: 0, // Free during preview
+    output: 0,
+  },
+  'qwen-2.5-32b': {
+    input: 0.29,
+    output: 0.59,
+  },
   'whisper-large-v3': {
     input: 0,
     output: 0,
