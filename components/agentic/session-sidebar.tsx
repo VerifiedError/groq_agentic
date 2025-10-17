@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, X, Loader2, MessageSquare, DollarSign, Flask } from 'lucide-react'
+import { Plus, Search, X, Loader2, MessageSquare, DollarSign, FlaskRound } from 'lucide-react'
 import { useRouter, usePathname } from 'next/navigation'
 import useAgenticSessionStore from '@/stores/agentic-session-store'
 import { SessionListItem } from './session-list-item'
@@ -68,7 +68,7 @@ export function SessionSidebar({ className }: SessionSidebarProps) {
                 : 'hover:bg-accent'
             )}
           >
-            <Flask className="w-4 h-4" />
+            <FlaskRound className="w-4 h-4" />
             Playground
           </button>
         </div>
