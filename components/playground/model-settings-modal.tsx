@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { X, Power, Lightbulb } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { X, Power, Lightbulb, Check, Loader2 } from 'lucide-react'
 
 interface Model {
   id: string
@@ -39,6 +39,15 @@ export function ModelSettingsModal({
 }: ModelSettingsModalProps) {
   const [localSettings, setLocalSettings] = useState(settings)
   const [useCustomPrompt, setUseCustomPrompt] = useState(!!settings.systemPrompt)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialMount = useRef(true)
+  const settingsRef = useRef(localSettings)
+
+  // Update ref when localSettings changes
+  useEffect(() => {
+    settingsRef.current = localSettings
+  }, [localSettings])
 
   useEffect(() => {
     setLocalSettings(settings)
@@ -46,10 +55,44 @@ export function ModelSettingsModal({
 
   const currentModel = models.find(m => m.id === modelId)
 
-  const handleSave = () => {
-    onSave(localSettings)
-    onClose()
-  }
+  // Debounced auto-save function (stable reference)
+  const debouncedSave = useCallback(() => {
+    // Clear any existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Set status to saving
+    setSaveStatus('saving')
+
+    // Create new timeout for 500ms
+    saveTimeoutRef.current = setTimeout(() => {
+      onSave(settingsRef.current)
+      setSaveStatus('saved')
+
+      // Reset to idle after 2 seconds
+      setTimeout(() => {
+        setSaveStatus('idle')
+      }, 2000)
+    }, 500)
+  }, [onSave])
+
+  // Auto-save when settings change (skip initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    debouncedSave()
+
+    // Cleanup on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [localSettings, debouncedSave])
 
   const handleApplyToAll = () => {
     onApplyToAll(localSettings)
@@ -62,6 +105,24 @@ export function ModelSettingsModal({
         className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto border bg-background shadow-2xl rounded-xl transition-all"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Save Status Indicator */}
+        {saveStatus !== 'idle' && (
+          <div className="absolute top-6 right-16 flex items-center gap-2 text-sm text-muted-foreground z-10">
+            {saveStatus === 'saving' && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            )}
+            {saveStatus === 'saved' && (
+              <>
+                <Check className="h-4 w-4 text-green-500" />
+                <span className="text-green-600 dark:text-green-400">Saved</span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -332,14 +393,8 @@ export function ModelSettingsModal({
           <div className="p-6 pt-4 border-t bg-accent/5">
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={handleSave}
-                className="flex-1 px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all shadow-sm"
-              >
-                Save Changes
-              </button>
-              <button
                 onClick={handleApplyToAll}
-                className="px-4 py-3 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-all"
+                className="flex-1 px-4 py-3 text-sm font-medium bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-all"
               >
                 Apply to All
               </button>

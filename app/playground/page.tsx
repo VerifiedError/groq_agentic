@@ -1921,17 +1921,19 @@ export default function PlaygroundChatPage() {
           settings={getModelSettings(openSettingsModal)}
           onSave={(newSettings) => {
             updateModelSettings(openSettingsModal, newSettings)
-            toast.success('Settings saved')
           }}
           onApplyToAll={(newSettings) => {
             applySettingsToAll(newSettings)
+            toast.success('Settings applied to all models')
           }}
           onReset={() => {
             resetModelSettings(openSettingsModal)
+            toast.success('Settings reset to defaults')
           }}
           onRemove={() => {
             setSelectedModels(prev => prev.filter(id => id !== openSettingsModal))
             setOpenSettingsModal(null)
+            toast.success('Model removed from selection')
           }}
           onClose={() => setOpenSettingsModal(null)}
         />
