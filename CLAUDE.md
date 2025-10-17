@@ -48,6 +48,197 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Reference related issues if applicable
    - Get the issue number for later reference
 
+### 📝 BEST PRACTICE: Creating Comprehensive GitHub Issues
+
+When creating GitHub issues for complex features, **ALWAYS use this structured format** to ensure clarity and completeness:
+
+#### Issue Template Structure:
+```markdown
+## 🎯 Objective
+[Clear, concise statement of what needs to be accomplished]
+
+## 📋 Tasks
+- [ ] Task 1 with specific details
+- [ ] Task 2 with specific details
+- [ ] Task 3 with specific details
+
+## 📁 Files to Create (if applicable)
+- `path/to/new/file1.ts`
+- `path/to/new/file2.tsx`
+
+## 📁 Files to Modify (if applicable)
+- `path/to/existing/file1.ts`
+- `path/to/existing/file2.tsx`
+
+## 📦 Dependencies (if applicable)
+- `npm install package-name`
+
+## ⏱️ Estimated Effort
+X-Y hours
+
+## 🔗 Dependencies
+- Issue #XX (must be completed first)
+- Issue #YY (related)
+
+## ✅ Acceptance Criteria
+- Criterion 1 that defines success
+- Criterion 2 that defines success
+- Criterion 3 that defines success
+```
+
+#### Example: Excellent GitHub Issue
+```bash
+gh issue create --title "Implement Preset System (Save/Load Configurations)" \
+  --label "enhancement" \
+  --body "## 🎯 Objective
+Add preset dropdown allowing users to save, load, and manage model configurations.
+
+## 📋 Features
+- Preset dropdown at top of modal
+- \"Select Preset...\" placeholder
+- List of user presets + global presets
+- \"Save as Preset\" option
+- Preset management modal (rename, delete, set as default)
+- Load preset → apply all settings immediately
+
+## 📋 Preset Types
+1. **Global Presets** (read-only):
+   - Creative Writing (temp: 1.2, topP: 0.9)
+   - Precise Code (temp: 0.3, topP: 0.5)
+   - Balanced (temp: 0.7, topP: 0.8)
+
+2. **User Presets** (editable)
+
+## 📋 API Endpoints (NEW)
+- \`GET /api/presets\` - List user + global presets
+- \`POST /api/presets\` - Create new preset
+- \`PATCH /api/presets/[id]\` - Update preset
+- \`DELETE /api/presets/[id]\` - Delete preset
+
+## 📁 Files to Create
+- \`app/api/presets/route.ts\`
+- \`app/api/presets/[id]/route.ts\`
+- \`components/playground/preset-dropdown.tsx\`
+- \`components/playground/preset-manager-modal.tsx\`
+
+## 📁 Files to Modify
+- \`components/playground/model-settings-modal.tsx\`
+- \`app/playground/page.tsx\`
+
+## ⏱️ Estimated Effort
+4-5 hours
+
+## 🔗 Dependencies
+- Issue #51 (Database Schema)
+
+## ✅ Acceptance Criteria
+- User can save current settings as preset
+- User can load preset to apply settings
+- User can manage (rename/delete) their presets
+- Global presets are read-only"
+```
+
+### 🎯 Managing Complex Features with Multiple Issues
+
+When breaking down a large feature into multiple GitHub issues:
+
+1. **Create a Comprehensive Plan FIRST**
+   - Use the TodoWrite tool to outline all sub-tasks
+   - Group related tasks into logical issues
+   - Identify dependencies between issues
+   - Assign priorities (🔴 HIGH, 🟡 MEDIUM, 🟢 LOW)
+
+2. **Create All Issues in Sequence**
+   - Update TodoWrite as you create each issue
+   - Mark each issue creation task as completed
+   - Keep track of issue numbers for cross-referencing
+
+3. **Example: Breaking Down "Model Settings Enhancement"**
+   ```typescript
+   // Step 1: Create todo list for issue creation
+   TodoWrite([
+     { content: "Create Issue #49: UI/UX Redesign", status: "in_progress" },
+     { content: "Create Issue #50: Auto-Save", status: "pending" },
+     { content: "Create Issue #51: Database Schema", status: "pending" },
+     // ... more issues
+   ])
+
+   // Step 2: Create each issue with full details
+   gh issue create --title "..." --body "..."
+
+   // Step 3: Update todo as completed
+   TodoWrite([
+     { content: "Create Issue #49: UI/UX Redesign", status: "completed" },
+     { content: "Create Issue #50: Auto-Save", status: "in_progress" },
+     // ...
+   ])
+   ```
+
+4. **Benefits of This Approach**:
+   - ✅ **Traceability**: Every sub-task is tracked in GitHub
+   - ✅ **Clarity**: Each issue has clear objectives and acceptance criteria
+   - ✅ **Productivity**: Work can be parallelized across multiple issues
+   - ✅ **Progress Tracking**: TodoWrite keeps session organized
+   - ✅ **Documentation**: Future developers understand the reasoning
+   - ✅ **Accountability**: Each issue closes with a specific commit
+
+### 🎯 TodoWrite Best Practices for GitHub Issues
+
+**ALWAYS update TodoWrite when working with GitHub issues:**
+
+```typescript
+// ❌ BAD: Creating issues without tracking
+gh issue create --title "Add feature X"
+gh issue create --title "Add feature Y"
+// (No todo list, hard to track progress)
+
+// ✅ GOOD: Track each issue creation
+TodoWrite([
+  { content: "Create Issue #49: Feature X", status: "in_progress" },
+  { content: "Create Issue #50: Feature Y", status: "pending" },
+  { content: "Implement Issue #49", status: "pending" },
+  { content: "Implement Issue #50", status: "pending" },
+])
+
+// Create first issue
+gh issue create --title "Feature X" --body "..."
+
+// Mark as completed
+TodoWrite([
+  { content: "Create Issue #49: Feature X", status: "completed" },
+  { content: "Create Issue #50: Feature Y", status: "in_progress" },
+  // ...
+])
+```
+
+### 📊 Issue Complexity Guidelines
+
+**Simple Issues** (1-2 hours):
+- Single file change
+- Bug fixes
+- Minor UI tweaks
+- Basic sections: Objective, Tasks (3-5), Acceptance Criteria
+
+**Medium Issues** (3-5 hours):
+- Multiple file changes
+- New component creation
+- Feature enhancements
+- All sections: Objective, Tasks (5-10), Files, Dependencies, Effort, Acceptance Criteria
+
+**Complex Issues** (6+ hours):
+- Breaking down into multiple issues recommended
+- Database schema changes
+- New API endpoints
+- System-wide features
+- Full template with code examples, API specs, detailed acceptance criteria
+
+**CRITICAL**: For complex features requiring 10+ issues:
+1. Create a master plan first (use ExitPlanMode)
+2. Get user approval on the plan
+3. Create all issues sequentially with TodoWrite tracking
+4. Cross-reference dependencies between issues
+5. Implement in priority order (🔴 → 🟡 → 🟢)
+
 2. **Present Changes to User for Approval**
    - Explain what will be changed and why
    - Detail all files that will be modified
