@@ -64,10 +64,17 @@ RUN pip3 install --no-cache-dir fastmcp --break-system-packages
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+
+# Copy Prisma files for migrations and client
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy MCP server files
 COPY --from=builder /app/mcp_servers ./mcp_servers
+
+# Copy package.json for Next.js to read dependencies metadata
+COPY --from=builder /app/package.json ./package.json
 
 # Create data directory for SQLite database and artifact workspaces
 RUN mkdir -p /app/data /app/artifact_workspaces && \

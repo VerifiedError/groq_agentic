@@ -17,9 +17,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
+    // Get or create user from database (upsert ensures user exists)
+    const user = await prisma.user.upsert({
       where: { email: session.user.email },
+      update: {}, // No updates, just ensure user exists
+      create: {
+        email: session.user.email,
+        name: session.user.name || 'User',
+      },
       select: {
         id: true,
         email: true,
@@ -27,10 +32,6 @@ export async function GET(request: NextRequest) {
         apiKey: true, // Include API key
       },
     })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
 
     // Return settings (mask API key for security)
     return NextResponse.json({
@@ -85,12 +86,17 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
-    // Update user settings
-    const updatedUser = await prisma.user.update({
+    // Update or create user settings (upsert ensures user exists)
+    const updatedUser = await prisma.user.upsert({
       where: { email: session.user.email },
-      data: {
+      update: {
         ...(apiKey !== undefined && { apiKey: apiKey || null }), // Allow clearing by sending empty string
         ...(name !== undefined && { name }),
+      },
+      create: {
+        email: session.user.email,
+        name: name || session.user.name || 'User',
+        ...(apiKey && { apiKey }),
       },
       select: {
         id: true,
