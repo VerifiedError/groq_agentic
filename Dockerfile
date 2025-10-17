@@ -34,6 +34,8 @@ RUN pip3 install --no-cache-dir fastmcp --break-system-packages
 RUN npx prisma generate
 
 # Build Next.js application with Turbopack
+# Provide dummy GROQ_API_KEY for build time (not used, just prevents build errors)
+ENV GROQ_API_KEY=gsk_build_time_dummy_key_not_used
 RUN npm run build
 
 # Stage 3: Runner (Production)
