@@ -38,7 +38,7 @@ export function ArtifactButton({ onCreateArtifact }: ArtifactButtonProps) {
       {/* Button */}
       <button
         onClick={() => setShowModal(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+        className="flex items-center gap-2 px-4 py-2 border bg-background hover:bg-accent transition-colors rounded-lg"
         title="Create new artifact"
       >
         <Plus className="h-4 w-4" />
@@ -156,7 +156,7 @@ export function ArtifactButton({ onCreateArtifact }: ArtifactButtonProps) {
                   </button>
                   <button
                     onClick={handleCreate}
-                    className="flex items-center gap-2 px-5 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                    className="flex items-center gap-2 px-5 py-2 text-sm bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                     Create Artifact

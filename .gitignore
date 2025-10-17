@@ -52,3 +52,6 @@ EXTRACTION_SUMMARY.md
 FINAL_SUMMARY.md
 QUICKSTART.md
 SETUP_COMPLETE.bat
+
+# playwright mcp
+.playwright-mcp/

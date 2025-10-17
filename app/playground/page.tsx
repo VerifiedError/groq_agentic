@@ -715,7 +715,7 @@ export default function PlaygroundChatPage() {
   if (status === 'loading') {
     return (
       <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-foreground" />
       </div>
     )
   }
@@ -731,7 +731,7 @@ export default function PlaygroundChatPage() {
       >
         <div className="flex h-full w-full flex-col gap-2 p-2">
           {/* Sidebar buttons */}
-          <div className="flex w-full flex-col items-stretch gap-0">
+          <div className="flex w-full gap-1">
             <button
               onClick={() => setSidebarExpanded(!sidebarExpanded)}
               className="inline-flex items-center justify-center rounded-md font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-9 w-9 shrink-0"
@@ -956,7 +956,7 @@ export default function PlaygroundChatPage() {
               <div key={message.id}>
                 {message.role === 'user' ? (
                   <div className="flex gap-3 justify-end">
-                    <div className="rounded-lg p-4 max-w-[80%] bg-primary text-primary-foreground">
+                    <div className="rounded-lg p-4 max-w-[80%] bg-muted border">
                       <div className="prose dark:prose-invert max-w-none">
                         <ReactMarkdown>
                           {message.content}
@@ -1102,7 +1102,7 @@ export default function PlaygroundChatPage() {
           <div className="max-w-4xl mx-auto">
             <div className="rounded-xl overflow-hidden p-2 border bg-card shadow-lg">
               {/* Quick actions */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-2 mb-2">
+              <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-3">
                 {quickActions.map((action) => (
                   <button
                     key={action.label}
@@ -1116,7 +1116,7 @@ export default function PlaygroundChatPage() {
                         textareaRef.current?.focus()
                       }
                     }}
-                    className="inline-flex items-center gap-2 px-3 h-8 rounded-full border bg-background shadow-sm hover:bg-accent transition-colors text-xs font-medium whitespace-nowrap"
+                    className="inline-flex items-center gap-2 px-4 h-9 rounded-full border bg-background shadow-sm hover:bg-accent transition-colors text-sm font-medium whitespace-nowrap"
                   >
                     <action.icon className="h-4 w-4" />
                     <span>{action.label}</span>
@@ -1203,7 +1203,7 @@ export default function PlaygroundChatPage() {
                   >
                     <Globe className="h-5 w-5" />
                     <span className="text-sm">Web search</span>
-                    <div className={`w-10 h-5 rounded-full transition-colors ${webSearchEnabled ? 'bg-primary' : 'bg-muted'}`}>
+                    <div className={`w-10 h-5 rounded-full transition-colors ${webSearchEnabled ? 'bg-foreground' : 'bg-muted'}`}>
                       <div className={`h-4 w-4 rounded-full bg-white shadow transform transition-transform m-0.5 ${webSearchEnabled ? 'translate-x-5' : ''}`} />
                     </div>
                   </button>
@@ -1211,7 +1211,7 @@ export default function PlaygroundChatPage() {
                 <button
                   onClick={handleSubmit}
                   disabled={(!input.trim() && attachments.length === 0) || isGenerating}
-                  className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 transition-all"
+                  className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 transition-all"
                 >
                   <ArrowUp className="h-4 w-4" />
                 </button>
@@ -1267,7 +1267,7 @@ export default function PlaygroundChatPage() {
                         }}
                         className={`flex items-start gap-3 p-3 rounded-md border transition-colors text-left ${
                           isSelected
-                            ? 'bg-primary/10 border-primary hover:bg-primary/20'
+                            ? 'bg-accent border-foreground/20 hover:bg-accent/80'
                             : 'bg-background hover:bg-accent'
                         }`}
                       >
@@ -1385,7 +1385,7 @@ export default function PlaygroundChatPage() {
               </button>
               <button
                 onClick={() => setShowSettings(false)}
-                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                className="px-4 py-2 text-sm bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
               >
                 Done
               </button>
@@ -1437,7 +1437,7 @@ export default function PlaygroundChatPage() {
                   handleSessionPromptSave(tempSessionPrompt)
                   setExpandedSessionPromptEditor(false)
                 }}
-                className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                className="px-4 py-2 text-sm bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors"
               >
                 Save
               </button>
