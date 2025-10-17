@@ -27,6 +27,7 @@ import ReactMarkdown from 'react-markdown'
 import { ArtifactViewer } from '@/components/playground/artifact-viewer'
 import { ArtifactButton } from '@/components/playground/artifact-button'
 import { ArtifactCard } from '@/components/playground/artifact-card'
+import { WorkspaceIDE } from '@/components/playground/workspace-ide'
 import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
 import { extractArtifactsFromResponse } from '@/lib/code-detector'
 import { parseArtifactResponse } from '@/lib/artifact-parser'
@@ -122,6 +123,10 @@ export default function PlaygroundChatPage() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
   const [tempSessionPrompt, setTempSessionPrompt] = useState('')
+
+  // Workspace Builder
+  const [showWorkspaceBuilder, setShowWorkspaceBuilder] = useState(false)
+  const [workspaceRequest, setWorkspaceRequest] = useState('')
 
   // Chat actions
   const [openMenuChatId, setOpenMenuChatId] = useState<string | null>(null)
@@ -1087,8 +1092,14 @@ export default function PlaygroundChatPage() {
                   <button
                     key={action.label}
                     onClick={() => {
-                      setInput(action.prompt)
-                      textareaRef.current?.focus()
+                      if (action.label === 'Interactive App') {
+                        // Open workspace builder for Interactive App
+                        setWorkspaceRequest('an interactive web application')
+                        setShowWorkspaceBuilder(true)
+                      } else {
+                        setInput(action.prompt)
+                        textareaRef.current?.focus()
+                      }
                     }}
                     className="inline-flex items-center gap-2 px-3 h-8 rounded-full border bg-background shadow-sm hover:bg-accent transition-colors text-xs font-medium whitespace-nowrap"
                   >
@@ -1426,6 +1437,15 @@ export default function PlaygroundChatPage() {
           artifact={artifacts.find(a => a.id === activeArtifactId)!}
           onClose={() => setActiveArtifactId(null)}
           onDelete={() => handleDeleteArtifact(activeArtifactId)}
+        />
+      )}
+
+      {/* Workspace Builder IDE */}
+      {showWorkspaceBuilder && (
+        <WorkspaceIDE
+          request={workspaceRequest}
+          onClose={() => setShowWorkspaceBuilder(false)}
+          model={selectedModels[0]}
         />
       )}
     </>
