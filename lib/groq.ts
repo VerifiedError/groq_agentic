@@ -19,3 +19,12 @@ if (!process.env.GROQ_API_KEY) {
 export const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || '',
 })
+
+/**
+ * Create a Groq client with a custom API key (for user-specific keys)
+ */
+export function createGroqClient(apiKey: string): Groq {
+  return new Groq({
+    apiKey,
+  })
+}

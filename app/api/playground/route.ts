@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import Groq from 'groq-sdk'
-import { GROQ_PRICING, calculateGroqCost } from '@/lib/groq'
+import { GROQ_PRICING, calculateGroqCost, createGroqClient } from '@/lib/groq'
+import { getEffectiveApiKey } from '@/lib/get-api-key'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-})
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +14,10 @@ export async function POST(request: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Get user-specific API key (or fall back to global)
+    const apiKey = await getEffectiveApiKey()
+    const groq = createGroqClient(apiKey)
 
     const body = await request.json()
     const { model, messages, temperature, maxTokens, topP, stop } = body

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
 import { ARTIFACT_CONTEXT_PROMPT } from '@/lib/artifact-system-prompts'
 import { parseArtifactResponse } from '@/lib/artifact-parser'
 import { MCP_TOOLS, executeMCPTool } from '@/lib/mcp-tools'
+import { createGroqClient } from '@/lib/groq'
+import { getEffectiveApiKey } from '@/lib/get-api-key'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 interface ChatMessage {
   id: string
@@ -66,7 +65,11 @@ export async function POST(
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const completion = await groq.chat.completions.create({
+          // Get user-specific API key (or fall back to global)
+          const apiKey = await getEffectiveApiKey()
+          const groqClient = createGroqClient(apiKey)
+
+          const completion = await groqClient.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
             messages,
             temperature: 0.7,

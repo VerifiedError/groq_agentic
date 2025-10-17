@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Groq from 'groq-sdk'
 import { WORKSPACE_BUILDER_SYSTEM_PROMPT } from '@/lib/workspace-system-prompt'
+import { createGroqClient } from '@/lib/groq'
+import { getEffectiveApiKey } from '@/lib/get-api-key'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 interface BuildRequest {
   request: string
@@ -41,6 +40,10 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Get user-specific API key (or fall back to global)
+          const apiKey = await getEffectiveApiKey()
+          const groq = createGroqClient(apiKey)
+
           const completion = await groq.chat.completions.create({
             model,
             messages,

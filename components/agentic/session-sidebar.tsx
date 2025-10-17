@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, X, Loader2, MessageSquare, DollarSign, FlaskRound } from 'lucide-react'
+import { Plus, Search, X, Loader2, MessageSquare, DollarSign, FlaskRound, Settings } from 'lucide-react'
 import { useRouter, usePathname } from 'next/navigation'
 import useAgenticSessionStore from '@/stores/agentic-session-store'
 import { SessionListItem } from './session-list-item'
 import { NewSessionButton } from './new-session-button'
+import { SettingsDialog } from '@/components/settings-dialog'
 import { cn } from '@/lib/utils'
 
 interface SessionSidebarProps {
@@ -27,6 +28,7 @@ export function SessionSidebar({ className }: SessionSidebarProps) {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [showNewSessionModal, setShowNewSessionModal] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   // Load sessions on mount
   useEffect(() => {
@@ -193,6 +195,23 @@ export function SessionSidebar({ className }: SessionSidebarProps) {
           </div>
         )}
       </div>
+
+      {/* Footer - Settings */}
+      <div className="p-3 border-t bg-muted/30">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent rounded-md transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+          Settings
+        </button>
+      </div>
+
+      {/* Settings Dialog */}
+      <SettingsDialog
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </div>
   )
 }

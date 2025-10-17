@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { groq } from '@/lib/groq'
+import { createGroqClient } from '@/lib/groq'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
@@ -7,6 +7,7 @@ import { rateLimit, getRateLimitIdentifier, rateLimitConfigs } from '@/lib/rate-
 import { encode } from 'gpt-tokenizer'
 import { calculateGroqCost, GroqModelName, isVisionModel } from '@/lib/groq'
 import { parseToolCalls, calculateTotalToolCosts, type ToolUsage } from '@/lib/utils/groq-tool-costs'
+import { getEffectiveApiKey } from '@/lib/get-api-key'
 
 // Force dynamic rendering for streaming support
 export const dynamic = 'force-dynamic'
@@ -221,8 +222,12 @@ Be concise, direct, and helpful. Format responses in markdown.`
     console.log('[Agentic] Model (transformed for Groq API):', groqModelName)
     console.log('[Agentic] Settings:', { temperature, maxTokens, topP })
 
+    // Get user-specific API key (or fall back to global)
+    const apiKey = await getEffectiveApiKey()
+    const groqClient = createGroqClient(apiKey)
+
     // Create streaming response with Groq Compound
-    const stream = await groq.chat.completions.create({
+    const stream = await groqClient.chat.completions.create({
       model: groqModelName, // Use transformed model name (compound or compound-mini)
       messages,
       temperature,
@@ -376,7 +381,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
               console.log('[Agentic] Making non-streaming call to retrieve tool metadata...')
 
               try {
-                const metadataResponse = await groq.chat.completions.create({
+                const metadataResponse = await groqClient.chat.completions.create({
                   model: groqModelName,
                   messages,
                   temperature,
