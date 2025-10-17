@@ -57,7 +57,9 @@ echo 1. Build and start (first time or after code changes)
 echo 2. Just start (if already built)
 echo 3. Stop containers
 echo 4. View logs
-echo 5. Clean rebuild (if having issues)
+echo 5. Clean rebuild (if having database/migration issues)
+echo.
+echo NOTE: Use option 5 if you see "table does not exist" errors
 echo.
 set /p choice="Enter choice (1-5): "
 
@@ -100,16 +102,22 @@ echo.
 echo [SUCCESS] Application is running!
 echo.
 echo Access your application at:
-echo http://localhost:13380
+echo http://localhost:13381
 echo.
 echo Useful commands:
 echo - View logs: docker-compose logs -f
 echo - Stop app: docker-compose down
 echo - Restart: docker-compose restart
 echo.
+echo TROUBLESHOOTING:
+echo If you see "table does not exist" errors:
+echo 1. Stop this script (Ctrl+C)
+echo 2. Run docker-start.bat again
+echo 3. Choose option 5 (Clean rebuild)
+echo.
 echo Opening browser...
 timeout /t 3 >nul
-start http://localhost:13380
+start http://localhost:13381
 goto end
 
 :stop
@@ -132,15 +140,55 @@ goto end
 :clean_rebuild
 echo.
 echo ========================================
-echo Cleaning and rebuilding...
+echo Clean Rebuild (with database migrations)
 echo ========================================
-echo Stopping containers...
+echo.
+echo This will:
+echo 1. Stop all containers
+echo 2. Rebuild Docker image from scratch
+echo 3. Deploy database migrations
+echo 4. Start fresh containers
+echo.
+echo This fixes "table does not exist" errors!
+echo.
+pause
+echo.
+echo [1/4] Stopping containers...
 docker-compose down
-echo Removing images...
+if errorlevel 1 (
+    echo [WARNING] Failed to stop containers (may not be running)
+)
+echo.
+echo [2/4] Rebuilding Docker image (this may take 5-10 minutes)...
 docker-compose build --no-cache
-echo Starting containers...
+if errorlevel 1 (
+    echo [ERROR] Build failed
+    pause
+    exit /b 1
+)
+echo.
+echo [3/4] Starting containers...
 docker-compose up -d
-echo [OK] Clean rebuild complete
+if errorlevel 1 (
+    echo [ERROR] Failed to start containers
+    pause
+    exit /b 1
+)
+echo.
+echo [4/4] Waiting for application to start...
+timeout /t 5 >nul
+echo.
+echo [SUCCESS] Clean rebuild complete!
+echo.
+echo Checking logs for migration status...
+echo ========================================
+docker-compose logs | findstr /C:"migration" /C:"Ready in" /C:"ERROR"
+echo ========================================
+echo.
+echo Full logs will now be displayed (Press Ctrl+C to exit)
+echo.
+timeout /t 3 >nul
+docker-compose logs -f
 goto end
 
 :end
