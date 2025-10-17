@@ -180,8 +180,13 @@ export default function PlaygroundChatPage() {
   // Load/Save system prompt from/to localStorage
   useEffect(() => {
     const saved = localStorage.getItem('playground-system-prompt')
-    if (saved) {
+    // Only use saved prompt if it exists and is not the old default
+    if (saved && saved !== 'You are a helpful AI assistant.') {
       setSystemPrompt(saved)
+    } else {
+      // Use the new artifact generation prompt as default
+      setSystemPrompt(ARTIFACT_GENERATION_SYSTEM_PROMPT)
+      localStorage.setItem('playground-system-prompt', ARTIFACT_GENERATION_SYSTEM_PROMPT)
     }
   }, [])
 
