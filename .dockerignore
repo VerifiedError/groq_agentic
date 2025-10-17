@@ -42,7 +42,7 @@ docker-compose.yml
 *.db
 *.db-journal
 prisma/dev.db
-prisma/migrations
+# Note: prisma/migrations MUST be included for schema deployment
 
 # MCP local cache
 .playwright-mcp/
