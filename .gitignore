@@ -41,7 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 # claude code documentation
-CLAUDE.md
+# CLAUDE.md - now tracked in git for Docker deployment documentation
 
 # database
 *.db
