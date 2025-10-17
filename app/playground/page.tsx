@@ -98,6 +98,9 @@ export default function PlaygroundChatPage() {
   const [models, setModels] = useState<Model[]>([])
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const [showModelDropdown, setShowModelDropdown] = useState(false)
+  const [modelSearchQuery, setModelSearchQuery] = useState('')
+  const [editingModelIndex, setEditingModelIndex] = useState<number | null>(null)
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
@@ -139,6 +142,8 @@ export default function PlaygroundChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const modelDropdownRef = useRef<HTMLDivElement>(null)
+  const modelPillsRef = useRef<HTMLDivElement>(null)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -229,6 +234,40 @@ export default function PlaygroundChatPage() {
     }
   }, [input])
 
+  // Click outside handler for model dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        showModelDropdown &&
+        modelDropdownRef.current &&
+        !modelDropdownRef.current.contains(event.target as Node) &&
+        modelPillsRef.current &&
+        !modelPillsRef.current.contains(event.target as Node)
+      ) {
+        setShowModelDropdown(false)
+        setModelSearchQuery('')
+        setEditingModelIndex(null)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showModelDropdown])
+
+  // ESC key to close model dropdown
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showModelDropdown) {
+        setShowModelDropdown(false)
+        setModelSearchQuery('')
+        setEditingModelIndex(null)
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [showModelDropdown])
+
   const fetchModels = async () => {
     try {
       setIsLoadingModels(true)
@@ -244,6 +283,34 @@ export default function PlaygroundChatPage() {
     } finally {
       setIsLoadingModels(false)
     }
+  }
+
+  // Filter models based on search query
+  const filteredModels = models.filter(model =>
+    model.displayName.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
+    model.id.toLowerCase().includes(modelSearchQuery.toLowerCase())
+  )
+
+  // Handle model selection from dropdown
+  const handleSelectModel = (modelId: string) => {
+    if (editingModelIndex !== null) {
+      // Replace the model at the editing index
+      setSelectedModels(prev => {
+        const newModels = [...prev]
+        newModels[editingModelIndex] = modelId
+        return newModels
+      })
+      toast.success(`Switched to ${models.find(m => m.id === modelId)?.displayName}`)
+    } else {
+      // Add new model
+      if (!selectedModels.includes(modelId)) {
+        setSelectedModels(prev => [...prev, modelId])
+        toast.success(`Added ${models.find(m => m.id === modelId)?.displayName}`)
+      }
+    }
+    setShowModelDropdown(false)
+    setModelSearchQuery('')
+    setEditingModelIndex(null)
   }
 
   const createNewChat = () => {
@@ -894,18 +961,28 @@ export default function PlaygroundChatPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar - Model Chips */}
-        <div className="flex-shrink-0 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
-          <div className="flex flex-wrap items-center gap-2">
-            {selectedModels.map((modelId) => {
+        <div className="flex-shrink-0 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 relative">
+          <div ref={modelPillsRef} className="flex flex-wrap items-center gap-2">
+            {selectedModels.map((modelId, index) => {
               const model = models.find(m => m.id === modelId)
               return (
                 <div key={modelId} className="duration-200 animate-in fade-in">
-                  <div className="relative flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm px-3">
+                  <div
+                    onClick={() => {
+                      setEditingModelIndex(index)
+                      setShowModelDropdown(true)
+                      setModelSearchQuery('')
+                    }}
+                    className="relative flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm px-3 cursor-pointer"
+                  >
                     <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
                       {model?.displayName || modelId}
                     </span>
                     <button
-                      onClick={() => setSelectedModels(prev => prev.filter(id => id !== modelId))}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedModels(prev => prev.filter(id => id !== modelId))
+                      }}
                       className="inline-flex items-center justify-center rounded-md transition-colors h-5 w-5 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 text-neutral-400 dark:text-neutral-500"
                       aria-label="Remove model"
                     >
@@ -916,7 +993,11 @@ export default function PlaygroundChatPage() {
               )
             })}
             <button
-              onClick={() => setShowModelSelector(true)}
+              onClick={() => {
+                setEditingModelIndex(null)
+                setShowModelDropdown(true)
+                setModelSearchQuery('')
+              }}
               className="inline-flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm h-9 w-9"
               type="button"
               aria-label="Add Model"
@@ -927,6 +1008,83 @@ export default function PlaygroundChatPage() {
               <ArtifactButton onCreateArtifact={handleCreateArtifact} />
             </div>
           </div>
+
+          {/* Model Dropdown */}
+          {showModelDropdown && (
+            <div
+              ref={modelDropdownRef}
+              className="absolute top-full left-4 right-4 mt-2 max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xl z-50 overflow-hidden"
+            >
+              {/* Search Bar */}
+              <div className="p-3 border-b border-neutral-200 dark:border-neutral-800">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                  <input
+                    type="text"
+                    placeholder="Search models..."
+                    value={modelSearchQuery}
+                    onChange={(e) => setModelSearchQuery(e.target.value)}
+                    className="w-full h-9 pl-9 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Model List */}
+              <div className="max-h-[400px] overflow-y-auto">
+                {isLoadingModels ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-neutral-400" />
+                  </div>
+                ) : filteredModels.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-neutral-500">
+                    No models found
+                  </div>
+                ) : (
+                  <div className="py-2">
+                    {filteredModels.map((model) => {
+                      const isSelected = selectedModels.includes(model.id)
+                      return (
+                        <button
+                          key={model.id}
+                          onClick={() => handleSelectModel(model.id)}
+                          className={`w-full text-left px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors ${
+                            isSelected ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm text-neutral-900 dark:text-neutral-100 truncate">
+                                {model.displayName}
+                              </div>
+                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                {model.isVision && <span className="inline-flex items-center gap-1 mr-2">👁️ Vision</span>}
+                                Context: {model.contextWindow.toLocaleString()} tokens
+                              </div>
+                              {model.inputPricing > 0 && (
+                                <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                  ${model.inputPricing} / ${model.outputPricing} per 1M tokens
+                                </div>
+                              )}
+                            </div>
+                            {isSelected && (
+                              <div className="flex-shrink-0">
+                                <div className="h-5 w-5 rounded-full bg-purple-600 flex items-center justify-center">
+                                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Session Prompt Section (Per-Chat) */}
