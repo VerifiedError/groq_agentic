@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/agentic/sessions - List all sessions for authenticated user
 export async function GET(request: NextRequest) {
   try {
@@ -12,13 +14,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
+    // Get or create user (upsert ensures user exists)
+    const user = await prisma.user.upsert({
       where: { email: session.user.email },
+      update: {},
+      create: {
+        email: session.user.email,
+        name: session.user.name || 'User',
+      },
     })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
 
     // Fetch all sessions for the user, ordered by most recent first
     const sessions = await prisma.agenticSession.findMany({
@@ -50,13 +54,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const user = await prisma.user.findUnique({
+    // Get or create user (upsert ensures user exists)
+    const user = await prisma.user.upsert({
       where: { email: session.user.email },
+      update: {},
+      create: {
+        email: session.user.email,
+        name: session.user.name || 'User',
+      },
     })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
 
     const body = await request.json()
     const { title, model, settings } = body
