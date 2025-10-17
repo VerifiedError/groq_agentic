@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { groq } from '@/lib/groq'
-import { isVisionModel } from '@/lib/groq-utils'
+import { isVisionModel, GROQ_PRICING } from '@/lib/groq-utils'
 
 // Vision model patterns for detection
 const VISION_MODEL_PATTERNS = [
@@ -59,10 +59,10 @@ export async function POST() {
       // Detect if it's a vision model
       const isVision = detectVisionModel(modelId)
 
-      // Default pricing (will be $0 until we get real pricing data)
-      // In production, you might want to call a separate pricing API or parse from model metadata
-      const inputPricing = 0
-      const outputPricing = 0
+      // Get pricing from GROQ_PRICING map, default to 0 if not found
+      const pricing = GROQ_PRICING[modelId as keyof typeof GROQ_PRICING] || { input: 0, output: 0 }
+      const inputPricing = pricing.input
+      const outputPricing = pricing.output
 
       // Context window from model data or default
       const contextWindow = model.context_window || 8192

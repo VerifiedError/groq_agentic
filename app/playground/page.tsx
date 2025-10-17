@@ -23,7 +23,8 @@ import {
   Loader2,
   Star,
   Sliders,
-  MoreHorizontal
+  MoreHorizontal,
+  RefreshCw
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
@@ -302,6 +303,27 @@ export default function PlaygroundChatPage() {
     } catch (error) {
       console.error('Failed to fetch models:', error)
       toast.error('Failed to load models')
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
+
+  const refreshModels = async () => {
+    try {
+      setIsLoadingModels(true)
+      toast.info('Refreshing models from Groq API...')
+      const response = await fetch('/api/models/refresh', { method: 'POST' })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to refresh models')
+      }
+
+      toast.success(`Refreshed ${data.count} models with pricing`)
+      await fetchModels() // Reload the models list
+    } catch (error: any) {
+      console.error('Failed to refresh models:', error)
+      toast.error(error.message || 'Failed to refresh models')
     } finally {
       setIsLoadingModels(false)
     }
@@ -1214,18 +1236,28 @@ export default function PlaygroundChatPage() {
               ref={modelDropdownRef}
               className="absolute top-full left-4 right-4 mt-2 max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xl z-50 overflow-hidden"
             >
-              {/* Search Bar */}
+              {/* Search Bar with Refresh Button */}
               <div className="p-3 border-b border-neutral-200 dark:border-neutral-800">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-                  <input
-                    type="text"
-                    placeholder="Search models..."
-                    value={modelSearchQuery}
-                    onChange={(e) => setModelSearchQuery(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    autoFocus
-                  />
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                    <input
+                      type="text"
+                      placeholder="Search models..."
+                      value={modelSearchQuery}
+                      onChange={(e) => setModelSearchQuery(e.target.value)}
+                      className="w-full h-9 pl-9 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    onClick={refreshModels}
+                    disabled={isLoadingModels}
+                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Refresh models from Groq API"
+                  >
+                    <RefreshCw className={`h-4 w-4 text-neutral-600 dark:text-neutral-400 ${isLoadingModels ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
               </div>
 
@@ -1286,11 +1318,12 @@ export default function PlaygroundChatPage() {
                                   {model.isVision && <span className="inline-flex items-center gap-1 mr-2">👁️ Vision</span>}
                                   Context: {model.contextWindow.toLocaleString()} tokens
                                 </div>
-                                {model.inputPricing > 0 && (
-                                  <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                    ${model.inputPricing} / ${model.outputPricing} per 1M tokens
-                                  </div>
-                                )}
+                                <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                  {model.inputPricing === 0 && model.outputPricing === 0
+                                    ? 'Free'
+                                    : `$${model.inputPricing.toFixed(2)} / $${model.outputPricing.toFixed(2)} per 1M tokens`
+                                  }
+                                </div>
                               </div>
                               {isSelected && (
                                 <div className="flex-shrink-0">
@@ -1691,11 +1724,12 @@ export default function PlaygroundChatPage() {
                           {model.isVision && <span className="inline-flex items-center gap-1 mr-2"><Plus className="h-3 w-3" />Vision</span>}
                           Context: {model.contextWindow.toLocaleString()} tokens
                         </div>
-                        {model.inputPricing > 0 && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            ${model.inputPricing} / ${model.outputPricing} per 1M tokens
-                          </div>
-                        )}
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {model.inputPricing === 0 && model.outputPricing === 0
+                            ? 'Free'
+                            : `$${model.inputPricing.toFixed(2)} / $${model.outputPricing.toFixed(2)} per 1M tokens`
+                          }
+                        </div>
                       </div>
                     </button>
                     )
