@@ -30,6 +30,7 @@ model User {
 
   // Relations
   agenticSessions  AgenticSession[]
+  modelPresets     ModelPreset[]
 
   @@map("users")
 }
@@ -143,4 +144,29 @@ model GroqModel {
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("groq_models")
+}
+
+// ==================== MODEL PRESETS ====================
+
+model ModelPreset {
+  id            String   @id @default(cuid())
+  userId        Int      @map("user_id")
+  name          String
+  description   String?
+
+  // JSON config with all model settings
+  // Example: { "temperature": 0.7, "maxTokens": 2000, "topP": 0.9, ... }
+  config        String   // JSON
+
+  isGlobal      Boolean  @default(false) @map("is_global")
+  isDefault     Boolean  @default(false) @map("is_default")
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("model_presets")
 }
