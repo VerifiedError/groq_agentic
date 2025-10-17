@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: groq-agentic
     ports:
-      - "13380:13380"
+      - "13381:13380"  # Docker on 13381, local dev on 13380
     environment:
       - NODE_ENV=production
       - PORT=13380
