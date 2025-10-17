@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
 import { ARTIFACT_CONTEXT_PROMPT } from '@/lib/artifact-system-prompts'
 import { parseArtifactResponse } from '@/lib/artifact-parser'
+import { MCP_TOOLS, executeMCPTool } from '@/lib/mcp-tools'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -71,36 +72,124 @@ export async function POST(
             temperature: 0.7,
             max_tokens: 4096,
             stream: true,
+            tools: MCP_TOOLS,
+            tool_choice: 'auto',
           })
 
           let fullContent = ''
+          let toolCalls: any[] = []
+          const fileChanges: Record<string, string> = { ...files }
 
           for await (const chunk of completion) {
-            const delta = chunk.choices[0]?.delta?.content || ''
-            if (delta) {
-              fullContent += delta
-              const data = JSON.stringify({ content: delta, done: false })
+            const delta = chunk.choices[0]?.delta
+
+            // Handle text content
+            if (delta?.content) {
+              fullContent += delta.content
+              const data = JSON.stringify({ content: delta.content, done: false })
               controller.enqueue(encoder.encode(`data: ${data}\n\n`))
+            }
+
+            // Handle tool calls
+            if (delta?.tool_calls) {
+              for (const toolCall of delta.tool_calls) {
+                const index = toolCall.index
+
+                // Initialize tool call entry if needed
+                if (!toolCalls[index]) {
+                  toolCalls[index] = {
+                    id: toolCall.id || '',
+                    type: 'function',
+                    function: {
+                      name: toolCall.function?.name || '',
+                      arguments: '',
+                    },
+                  }
+                }
+
+                // Accumulate function arguments
+                if (toolCall.function?.arguments) {
+                  toolCalls[index].function.arguments += toolCall.function.arguments
+                }
+
+                // Update ID if provided
+                if (toolCall.id) {
+                  toolCalls[index].id = toolCall.id
+                }
+
+                // Update name if provided
+                if (toolCall.function?.name) {
+                  toolCalls[index].function.name = toolCall.function.name
+                }
+              }
             }
           }
 
-          // Parse the full response for artifact edits
-          const artifactResponse = parseArtifactResponse(fullContent)
-          let fileChanges: Record<string, string> | undefined = undefined
+          // Execute tool calls if any
+          if (toolCalls.length > 0) {
+            for (const toolCall of toolCalls) {
+              try {
+                const { name, arguments: argsStr } = toolCall.function
+                const args = JSON.parse(argsStr)
 
-          if (
-            artifactResponse?.type === 'modification' &&
-            artifactResponse.modification
-          ) {
-            // Apply edits to create new file versions
-            fileChanges = applyEdits(files, artifactResponse.modification.edits)
+                // Execute the MCP tool
+                const result = await executeMCPTool(artifactId, name, args)
+
+                // Update file changes based on tool execution
+                if (name === 'write_file' && !result.startsWith('Error:')) {
+                  // Read the file back to update fileChanges
+                  const readResult = await executeMCPTool(artifactId, 'read_file', {
+                    path: args.path,
+                  })
+                  if (!readResult.startsWith('Error:')) {
+                    fileChanges[args.path] = readResult
+                  }
+                } else if (name === 'edit_file' && !result.startsWith('Error:')) {
+                  // Read the file back to update fileChanges
+                  const readResult = await executeMCPTool(artifactId, 'read_file', {
+                    path: args.path,
+                  })
+                  if (!readResult.startsWith('Error:')) {
+                    fileChanges[args.path] = readResult
+                  }
+                } else if (name === 'delete_file' && !result.startsWith('Error:')) {
+                  delete fileChanges[args.path]
+                }
+
+                // Stream tool execution notification to user
+                const toolData = JSON.stringify({
+                  content: `\n\n*[Tool: ${name} - ${result}]*\n\n`,
+                  done: false,
+                })
+                controller.enqueue(encoder.encode(`data: ${toolData}\n\n`))
+              } catch (error: any) {
+                console.error('Tool execution error:', error)
+                const errorData = JSON.stringify({
+                  content: `\n\n*[Tool error: ${error.message}]*\n\n`,
+                  done: false,
+                })
+                controller.enqueue(encoder.encode(`data: ${errorData}\n\n`))
+              }
+            }
+          }
+
+          // Fallback: Parse XML if no tool calls (backward compatibility)
+          let xmlFileChanges: Record<string, string> | undefined = undefined
+          if (toolCalls.length === 0 && fullContent) {
+            const artifactResponse = parseArtifactResponse(fullContent)
+            if (
+              artifactResponse?.type === 'modification' &&
+              artifactResponse.modification
+            ) {
+              xmlFileChanges = applyEdits(files, artifactResponse.modification.edits)
+            }
           }
 
           // Send final message with file changes
           const finalData = JSON.stringify({
             content: '',
             done: true,
-            fileChanges,
+            fileChanges: toolCalls.length > 0 ? fileChanges : xmlFileChanges,
           })
           controller.enqueue(encoder.encode(`data: ${finalData}\n\n`))
 

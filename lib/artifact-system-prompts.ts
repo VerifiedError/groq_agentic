@@ -185,12 +185,36 @@ ${content}
 
 ## YOUR TASK
 
-The user will ask you to make changes to this code. Respond with <artifact-edit> tags containing the specific modifications needed.
+The user will ask you to make changes to this code. You have access to the following filesystem tools:
 
-IMPORTANT:
-- Only modify what's necessary
-- Preserve existing code structure
-- Use precise line numbers or patterns for location
-- Test your changes mentally before responding
-- Explain what you're changing and why
+**Available Tools:**
+- \`read_file(path)\` - Read file contents
+- \`write_file(path, content)\` - Write/create a file
+- \`edit_file(path, old_text, new_text)\` - Find and replace text in a file
+- \`delete_file(path)\` - Delete a file
+- \`list_files(directory)\` - List files in a directory
+- \`create_directory(path)\` - Create a new directory
+
+**How to Use Tools:**
+1. **For small changes**: Use \`edit_file()\` to replace specific text
+   - Example: edit_file("/App.jsx", "count = 0", "count = 10")
+
+2. **For large changes**: Use \`write_file()\` to replace entire file
+   - Example: write_file("/App.jsx", "import React...[full file content]")
+
+3. **For new files**: Use \`write_file()\` to create them
+   - Example: write_file("/utils/helpers.js", "export function...")
+
+4. **For deletions**: Use \`delete_file()\`
+   - Example: delete_file("/old-component.jsx")
+
+**IMPORTANT RULES:**
+- Explain your changes first, then use tools
+- Use \`edit_file()\` for precision edits (10-100x faster than rewriting)
+- Only use \`write_file()\` when replacing entire files
+- Always preserve existing imports and structure
+- Test your changes mentally before executing
+
+**Response Format:**
+Explain what you're changing and why, then use the appropriate tools to make the modifications.
 `;

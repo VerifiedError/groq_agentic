@@ -274,11 +274,12 @@ Be concise, direct, and helpful. Format responses in markdown.`
               console.log('[Agentic] Stream finished:', chunk.choices[0].finish_reason)
 
               // Get actual token usage if available
-              if (chunk.usage) {
-                promptTokens = chunk.usage.prompt_tokens || promptTokens
-                completionTokens = chunk.usage.completion_tokens || completionTokens
-                cachedTokens = chunk.usage.prompt_tokens_details?.cached_tokens || 0
-                console.log('[Agentic] Token usage from API:', chunk.usage)
+              const usage = (chunk as any).usage
+              if (usage) {
+                promptTokens = usage.prompt_tokens || promptTokens
+                completionTokens = usage.completion_tokens || completionTokens
+                cachedTokens = usage.prompt_tokens_details?.cached_tokens || 0
+                console.log('[Agentic] Token usage from API:', usage)
                 console.log('[Agentic] Cached tokens:', cachedTokens)
               }
 
