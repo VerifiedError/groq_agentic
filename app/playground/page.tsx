@@ -20,7 +20,8 @@ import {
   Command,
   Search,
   MoreVertical,
-  Loader2
+  Loader2,
+  Star
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
@@ -102,6 +103,8 @@ export default function PlaygroundChatPage() {
   const [showModelDropdown, setShowModelDropdown] = useState(false)
   const [modelSearchQuery, setModelSearchQuery] = useState('')
   const [editingModelIndex, setEditingModelIndex] = useState<number | null>(null)
+  const [favoriteModels, setFavoriteModels] = useState<string[]>([])
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState<string | null>(null)
 
   // Chat state
   const [messages, setMessages] = useState<Message[]>([])
@@ -153,10 +156,11 @@ export default function PlaygroundChatPage() {
     }
   }, [status, router])
 
-  // Load models
+  // Load models and favorites
   useEffect(() => {
     if (status === 'authenticated') {
       fetchModels()
+      fetchFavorites()
     }
   }, [status])
 
@@ -286,11 +290,59 @@ export default function PlaygroundChatPage() {
     }
   }
 
-  // Filter models based on search query
-  const filteredModels = models.filter(model =>
-    model.displayName.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
-    model.id.toLowerCase().includes(modelSearchQuery.toLowerCase())
-  )
+  const fetchFavorites = async () => {
+    try {
+      const response = await fetch('/api/users/favorites')
+      const data = await response.json()
+      setFavoriteModels(data.favorites || [])
+    } catch (error) {
+      console.error('Failed to fetch favorites:', error)
+    }
+  }
+
+  const toggleFavorite = async (modelId: string) => {
+    try {
+      setIsTogglingFavorite(modelId)
+      const response = await fetch('/api/users/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId })
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        setFavoriteModels(data.favorites)
+        toast.success(
+          data.action === 'added'
+            ? `Added to favorites`
+            : `Removed from favorites`
+        )
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error)
+      toast.error('Failed to update favorite')
+    } finally {
+      setIsTogglingFavorite(null)
+    }
+  }
+
+  // Filter and sort models based on search query and favorites
+  const filteredModels = models
+    .filter(model =>
+      model.displayName.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
+      model.id.toLowerCase().includes(modelSearchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aIsFavorite = favoriteModels.includes(a.id)
+      const bIsFavorite = favoriteModels.includes(b.id)
+
+      // Favorites first
+      if (aIsFavorite && !bIsFavorite) return -1
+      if (!aIsFavorite && bIsFavorite) return 1
+
+      // Then alphabetically
+      return a.displayName.localeCompare(b.displayName)
+    })
 
   // Handle model selection from dropdown
   const handleSelectModel = (modelId: string) => {
@@ -1062,40 +1114,67 @@ export default function PlaygroundChatPage() {
                   <div className="py-2">
                     {filteredModels.map((model) => {
                       const isSelected = selectedModels.includes(model.id)
+                      const isFavorite = favoriteModels.includes(model.id)
+                      const isToggling = isTogglingFavorite === model.id
+
                       return (
-                        <button
+                        <div
                           key={model.id}
-                          onClick={() => handleSelectModel(model.id)}
-                          className={`w-full text-left px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors ${
+                          className={`flex items-start gap-2 px-4 py-3 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors ${
                             isSelected ? 'bg-purple-50 dark:bg-purple-900/20' : ''
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium text-sm text-neutral-900 dark:text-neutral-100 truncate">
-                                {model.displayName}
-                              </div>
-                              <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                {model.isVision && <span className="inline-flex items-center gap-1 mr-2">👁️ Vision</span>}
-                                Context: {model.contextWindow.toLocaleString()} tokens
-                              </div>
-                              {model.inputPricing > 0 && (
+                          {/* Star Icon */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(model.id)
+                            }}
+                            disabled={isToggling}
+                            className="flex-shrink-0 mt-0.5 hover:scale-110 transition-transform disabled:opacity-50"
+                            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                          >
+                            <Star
+                              className={`h-4 w-4 ${
+                                isFavorite
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-neutral-400 hover:text-yellow-400'
+                              }`}
+                            />
+                          </button>
+
+                          {/* Model Info */}
+                          <button
+                            onClick={() => handleSelectModel(model.id)}
+                            className="flex-1 min-w-0 text-left"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm text-neutral-900 dark:text-neutral-100 truncate">
+                                  {model.displayName}
+                                </div>
                                 <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                  ${model.inputPricing} / ${model.outputPricing} per 1M tokens
+                                  {model.isVision && <span className="inline-flex items-center gap-1 mr-2">👁️ Vision</span>}
+                                  Context: {model.contextWindow.toLocaleString()} tokens
+                                </div>
+                                {model.inputPricing > 0 && (
+                                  <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                    ${model.inputPricing} / ${model.outputPricing} per 1M tokens
+                                  </div>
+                                )}
+                              </div>
+                              {isSelected && (
+                                <div className="flex-shrink-0">
+                                  <div className="h-5 w-5 rounded-full bg-purple-600 flex items-center justify-center">
+                                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
                                 </div>
                               )}
                             </div>
-                            {isSelected && (
-                              <div className="flex-shrink-0">
-                                <div className="h-5 w-5 rounded-full bg-purple-600 flex items-center justify-center">
-                                  <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </button>
+                          </button>
+                        </div>
                       )
                     })}
                   </div>
