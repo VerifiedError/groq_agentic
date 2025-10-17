@@ -17,6 +17,7 @@ interface MessageCostBadgeProps {
   cost: number
   inputTokens: number
   outputTokens: number
+  cachedTokens?: number
   toolCalls?: string | null
   className?: string
   showDetails?: boolean
@@ -26,6 +27,7 @@ export function MessageCostBadge({
   cost,
   inputTokens,
   outputTokens,
+  cachedTokens = 0,
   toolCalls,
   className,
   showDetails = false,
@@ -51,6 +53,9 @@ export function MessageCostBadge({
   }
 
   const hasToolCosts = toolBreakdown.length > 0
+  const cacheHitRate = cachedTokens > 0 && inputTokens > 0
+    ? ((cachedTokens / inputTokens) * 100).toFixed(1)
+    : null
 
   return (
     <div className={cn('inline-flex flex-col gap-1', className)}>
@@ -64,7 +69,7 @@ export function MessageCostBadge({
         onClick={() => hasToolCosts && setShowBreakdown(!showBreakdown)}
         title={
           showDetails
-            ? `Input: ${inputTokens} tokens, Output: ${outputTokens} tokens${hasToolCosts ? ' (click for tool breakdown)' : ''}`
+            ? `Input: ${inputTokens} tokens, Output: ${outputTokens} tokens${cachedTokens > 0 ? `, Cached: ${cachedTokens} (${cacheHitRate}% hit rate)` : ''}${hasToolCosts ? ' (click for tool breakdown)' : ''}`
             : undefined
         }
       >
@@ -72,7 +77,7 @@ export function MessageCostBadge({
         <span className="font-medium">{formattedCost}</span>
         {showDetails && (
           <span className="text-muted-foreground">
-            ({inputTokens + outputTokens} tokens)
+            ({inputTokens + outputTokens} tokens{cachedTokens > 0 ? `, ${cacheHitRate}% cached` : ''})
           </span>
         )}
         {hasToolCosts && (

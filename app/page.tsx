@@ -309,6 +309,7 @@ export default function AgenticPage() {
                           cost={message.cost}
                           inputTokens={message.inputTokens}
                           outputTokens={message.outputTokens}
+                          cachedTokens={message.cachedTokens}
                           toolCalls={message.toolCalls}
                           showDetails
                           className="self-start"

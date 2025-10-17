@@ -41,6 +41,7 @@ model AgenticSession {
   totalCost     Float    @default(0) @map("total_cost")
   inputTokens   Int      @default(0) @map("input_tokens")
   outputTokens  Int      @default(0) @map("output_tokens")
+  cachedTokens  Int      @default(0) @map("cached_tokens")
   messageCount  Int      @default(0) @map("message_count")
 
   // Timestamps
@@ -65,6 +66,7 @@ model AgenticMessage {
   cost          Float    @default(0)
   inputTokens   Int      @default(0) @map("input_tokens")
   outputTokens  Int      @default(0) @map("output_tokens")
+  cachedTokens  Int      @default(0) @map("cached_tokens")
 
   // Tool Usage
   toolCalls     String?  @map("tool_calls") // JSON array of tool calls

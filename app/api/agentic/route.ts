@@ -234,6 +234,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
     // Track token usage and executed tools for cost calculation
     let promptTokens = 0
     let completionTokens = 0
+    let cachedTokens = 0
     let fullResponse = ''
     let executedTools: any[] = []
     let usageBreakdown: any = null
@@ -276,7 +277,9 @@ Be concise, direct, and helpful. Format responses in markdown.`
               if (chunk.usage) {
                 promptTokens = chunk.usage.prompt_tokens || promptTokens
                 completionTokens = chunk.usage.completion_tokens || completionTokens
+                cachedTokens = chunk.usage.prompt_tokens_details?.cached_tokens || 0
                 console.log('[Agentic] Token usage from API:', chunk.usage)
+                console.log('[Agentic] Cached tokens:', cachedTokens)
               }
 
               // Extract executed_tools from chunk (Groq Compound API specific)
@@ -340,6 +343,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                   cost: 0, // User messages don't have cost
                   inputTokens: 0,
                   outputTokens: 0,
+                  cachedTokens: 0,
                   toolCalls: null,
                   attachments: hasAttachments ? JSON.stringify(attachments) : null,
                 },
@@ -354,6 +358,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                   cost: totalMessageCost,
                   inputTokens: promptTokens,
                   outputTokens: completionTokens,
+                  cachedTokens: cachedTokens,
                   toolCalls: executedTools.length > 0 ? JSON.stringify({
                     executed_tools: executedTools,
                     usages: toolUsages,
@@ -421,6 +426,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                       totalCost: { increment: totalMessageCost + costDifference },
                       inputTokens: { increment: promptTokens },
                       outputTokens: { increment: completionTokens },
+                      cachedTokens: { increment: cachedTokens },
                       messageCount: { increment: 2 },
                     },
                   })
@@ -436,6 +442,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                       totalCost: { increment: totalMessageCost },
                       inputTokens: { increment: promptTokens },
                       outputTokens: { increment: completionTokens },
+                      cachedTokens: { increment: cachedTokens },
                       messageCount: { increment: 2 },
                     },
                   })
@@ -452,13 +459,14 @@ Be concise, direct, and helpful. Format responses in markdown.`
                     totalCost: { increment: totalMessageCost },
                     inputTokens: { increment: promptTokens },
                     outputTokens: { increment: completionTokens },
+                    cachedTokens: { increment: cachedTokens },
                     messageCount: { increment: 2 },
                   },
                 })
               }
 
               console.log('[Agentic] Saved messages and updated session')
-              console.log('[Agentic] Tokens:', { promptTokens, completionTokens })
+              console.log('[Agentic] Tokens:', { promptTokens, completionTokens, cachedTokens })
               console.log('[Agentic] Total cost:', totalMessageCost)
 
               // Send final metadata
@@ -469,6 +477,7 @@ Be concise, direct, and helpful. Format responses in markdown.`
                     usage: {
                       promptTokens,
                       completionTokens,
+                      cachedTokens,
                       totalTokens: promptTokens + completionTokens,
                       cost: totalMessageCost,
                       tokenCost: tokenCosts.totalCost,

@@ -83,10 +83,16 @@ export async function POST(request: NextRequest) {
           const finalData = {
             content: '',
             done: true,
-            usage: usage || {
+            usage: usage ? {
+              prompt_tokens: usage.prompt_tokens || 0,
+              completion_tokens: usage.completion_tokens || 0,
+              total_tokens: usage.total_tokens || 0,
+              cached_tokens: usage.prompt_tokens_details?.cached_tokens || 0,
+            } : {
               prompt_tokens: 0,
               completion_tokens: 0,
               total_tokens: 0,
+              cached_tokens: 0,
             },
             cost,
           }

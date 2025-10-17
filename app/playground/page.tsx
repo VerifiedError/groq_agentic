@@ -438,6 +438,22 @@ export default function PlaygroundPage() {
                             {usage.total_tokens?.toLocaleString() || 0}
                           </span>
                         </div>
+                        {usage.cached_tokens > 0 && (
+                          <>
+                            <div>
+                              <span className="text-muted-foreground">Cached Tokens:</span>
+                              <span className="ml-2 font-medium text-green-600 dark:text-green-400">
+                                {usage.cached_tokens?.toLocaleString() || 0}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Cache Hit Rate:</span>
+                              <span className="ml-2 font-medium text-green-600 dark:text-green-400">
+                                {((usage.cached_tokens / (usage.prompt_tokens || 1)) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
                     {cost !== null && typeof cost === 'number' && (
