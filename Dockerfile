@@ -34,9 +34,13 @@ RUN pip3 install --no-cache-dir fastmcp --break-system-packages
 RUN npx prisma generate
 
 # Build Next.js application with Turbopack
-# Provide dummy GROQ_API_KEY for build time (not used, just prevents build errors)
-ENV GROQ_API_KEY=gsk_build_time_dummy_key_not_used
+# Note: This is NOT a real secret - just a placeholder to satisfy Next.js build checks
+# Real API keys are provided at runtime via docker-compose.yml or user settings
+ARG GROQ_API_KEY_BUILD=gsk_build_time_placeholder_not_a_real_secret
+ENV GROQ_API_KEY=${GROQ_API_KEY_BUILD}
 RUN npm run build
+# Clear the placeholder after build
+ENV GROQ_API_KEY=
 
 # Stage 3: Runner (Production)
 FROM node:20-alpine AS runner
@@ -84,4 +88,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:13380/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Run migrations and start server
-CMD npx prisma migrate deploy && node server.js
+# Use JSON format to properly handle OS signals (SIGTERM, SIGINT)
+CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
