@@ -57,7 +57,7 @@ export function ModelSettingsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
         className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto border bg-background p-6 shadow-lg rounded-lg"
         onClick={(e) => e.stopPropagation()}

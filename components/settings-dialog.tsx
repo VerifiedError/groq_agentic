@@ -158,7 +158,7 @@ export function SettingsDialog({ isOpen, onClose }: SettingsDialogProps) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[800] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
       <div className="w-full max-w-2xl bg-card border rounded-lg shadow-lg flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b shrink-0">

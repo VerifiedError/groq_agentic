@@ -285,7 +285,7 @@ export function ArtifactViewer({
   const presets: LayoutPreset[] = ['balanced', 'code-focus', 'preview-focus', 'fullstack']
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-[400] bg-background flex flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between border-b bg-card px-4 py-2.5 gap-4">
         {/* Left: Title */}
@@ -314,10 +314,10 @@ export function ArtifactViewer({
             {showLayoutMenu && (
               <>
                 <div
-                  className="fixed inset-0 z-40"
+                  className="fixed inset-0 z-[399]"
                   onClick={() => setShowLayoutMenu(false)}
                 />
-                <div className="absolute top-full mt-1 right-0 z-50 bg-popover border rounded-lg shadow-lg p-2 min-w-[200px]">
+                <div className="absolute top-full mt-1 right-0 z-[410] bg-popover border rounded-lg shadow-lg p-2 min-w-[200px]">
                   {presets.map((preset) => {
                     const info = getPresetInfo(preset)
                     const isActive = layoutSettings.layout === preset
@@ -360,10 +360,10 @@ export function ArtifactViewer({
             {showToolsMenu && (
               <>
                 <div
-                  className="fixed inset-0 z-40"
+                  className="fixed inset-0 z-[399]"
                   onClick={() => setShowToolsMenu(false)}
                 />
-                <div className="absolute top-full mt-1 right-0 z-50 bg-popover border rounded-lg shadow-lg p-2 min-w-[180px]">
+                <div className="absolute top-full mt-1 right-0 z-[410] bg-popover border rounded-lg shadow-lg p-2 min-w-[180px]">
                   <button
                     onClick={() => {
                       setLayoutSettings({ ...layoutSettings, showFileTree: !layoutSettings.showFileTree })

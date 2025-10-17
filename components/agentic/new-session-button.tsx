@@ -211,7 +211,7 @@ export function NewSessionButton({ variant = 'icon', onSessionCreated }: NewSess
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-3xl max-h-[85vh] bg-card border rounded-lg shadow-lg flex flex-col">
             {/* Header - Fixed */}
             <div className="flex items-center justify-between p-4 border-b shrink-0">

@@ -63,7 +63,7 @@ export function ArtifactChangesPreview({
       : []
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
       <div className="bg-background border rounded-lg shadow-lg max-w-5xl w-full max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">

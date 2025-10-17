@@ -216,7 +216,7 @@ export function WorkspaceIDE({ request, onClose, model = 'llama-3.3-70b-versatil
   const sandpackDependencies = workspaceState.dependencies
 
   return (
-    <div className="fixed inset-0 z-50 bg-background flex flex-col">
+    <div className="fixed inset-0 z-[500] bg-background flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b bg-card px-4 py-3">
         <div className="flex items-center gap-4">
