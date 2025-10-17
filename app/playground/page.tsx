@@ -687,6 +687,16 @@ export default function PlaygroundChatPage() {
     { icon: Box, label: '3D Game', prompt: 'Create a 3D game featuring ' }
   ]
 
+  // Example prompts for OpenRouter-style carousel
+  const examplePrompts = [
+    { title: '9.9 vs 9.11', description: 'Which one is larger?' },
+    { title: 'Strawberry Test', description: 'How many r\'s are in the word strawberry?' },
+    { title: 'Poem Riddle', description: 'Compose a 12-line poem' },
+    { title: 'Personal Finance', description: 'Draft up a portfolio management proposal' },
+    { title: 'Anagram Challenge', description: 'Unscramble letters to form a word.' },
+    { title: 'The Missing Dollar', description: 'A classic logic puzzle involving money.' }
+  ]
+
   // Group chats by date
   const groupedChats = chatSessions.reduce((acc, chat) => {
     const now = new Date()
@@ -722,11 +732,11 @@ export default function PlaygroundChatPage() {
 
   return (
     <>
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-white dark:bg-neutral-950">
       {/* Sidebar */}
       <aside
-        className={`flex flex-shrink-0 flex-col bg-background border-r transition-all duration-200 ease-in-out ${
-          sidebarExpanded ? 'w-64' : 'w-[54px]'
+        className={`flex flex-shrink-0 flex-col bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 transition-all duration-200 ease-in-out ${
+          sidebarExpanded ? 'w-[240px]' : 'w-[54px]'
         }`}
       >
         <div className="flex h-full w-full flex-col gap-2 p-2">
@@ -765,7 +775,13 @@ export default function PlaygroundChatPage() {
 
               {/* Chat history */}
               <div className="flex-1 min-h-0 overflow-y-auto">
-                {Object.entries(filteredChats).map(([group, chats]) => (
+                {Object.keys(filteredChats).length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-sm text-neutral-500">
+                    No matching rooms
+                  </div>
+                ) : (
+                  <>
+                  {Object.entries(filteredChats).map(([group, chats]) => (
                   <div key={group} className="mb-4">
                     <h4 className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground px-3 py-2">
                       {group}
@@ -836,6 +852,8 @@ export default function PlaygroundChatPage() {
                     </div>
                   </div>
                 ))}
+                </>
+                )}
               </div>
 
               {/* System Prompt Settings */}
@@ -876,49 +894,37 @@ export default function PlaygroundChatPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar - Model Chips */}
-        <div className="flex-shrink-0 p-4 border-b">
-          <div className="flex flex-col gap-2 flex-1 min-w-0">
-            <div className="max-h-[8.5rem] overflow-y-auto">
-              <div className="flex flex-wrap items-center gap-2 p-px">
-                {selectedModels.map((modelId) => {
-                  const model = models.find(m => m.id === modelId)
-                  return (
-                    <div key={modelId} className="duration-200 animate-in fade-in">
-                      <div className="relative flex h-9 cursor-pointer items-center justify-between gap-1 rounded-lg transition-all duration-150 ease-in-out border bg-background text-foreground shadow-sm hover:bg-accent w-fit shrink-0">
-                        <div className="relative flex h-full w-full select-none items-center gap-2 pl-2">
-                          <div className="min-w-0 flex-1">
-                            <span className="block text-xs md:text-sm font-medium">
-                              {model?.displayName || modelId}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center flex-shrink-0 pr-1">
-                          <button
-                            onClick={() => setSelectedModels(prev => prev.filter(id => id !== modelId))}
-                            className="inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors gap-2 leading-6 text-muted-foreground border border-transparent h-6 w-6 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
-                            aria-label="Remove model"
-                          >
-                            <Plus className="h-4 w-4 rotate-45" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-                <button
-                  onClick={() => setShowModelSelector(true)}
-                  className="inline-flex items-center justify-center whitespace-nowrap rounded-md transition-colors gap-2 bg-background border shadow-sm hover:bg-accent text-sm font-medium h-9 w-9 flex-shrink-0"
-                  type="button"
-                  aria-label="Add Model"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-
-              {/* Artifact Button */}
-              <div className="ml-4">
-                <ArtifactButton onCreateArtifact={handleCreateArtifact} />
-              </div>
+        <div className="flex-shrink-0 p-4 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950">
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedModels.map((modelId) => {
+              const model = models.find(m => m.id === modelId)
+              return (
+                <div key={modelId} className="duration-200 animate-in fade-in">
+                  <div className="relative flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm px-3">
+                    <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                      {model?.displayName || modelId}
+                    </span>
+                    <button
+                      onClick={() => setSelectedModels(prev => prev.filter(id => id !== modelId))}
+                      className="inline-flex items-center justify-center rounded-md transition-colors h-5 w-5 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 text-neutral-400 dark:text-neutral-500"
+                      aria-label="Remove model"
+                    >
+                      <Plus className="h-3.5 w-3.5 rotate-45" />
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+            <button
+              onClick={() => setShowModelSelector(true)}
+              className="inline-flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm h-9 w-9"
+              type="button"
+              aria-label="Add Model"
+            >
+              <Plus className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+            </button>
+            <div className="ml-2">
+              <ArtifactButton onCreateArtifact={handleCreateArtifact} />
             </div>
           </div>
         </div>
@@ -950,8 +956,8 @@ export default function PlaygroundChatPage() {
         )}
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 bg-neutral-50 dark:bg-neutral-900">
+          <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((message) => (
               <div key={message.id}>
                 {message.role === 'user' ? (
@@ -1098,11 +1104,35 @@ export default function PlaygroundChatPage() {
         </div>
 
         {/* Input area */}
-        <div className="flex-shrink-0 p-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="rounded-xl overflow-hidden p-2 border bg-card shadow-lg">
+        <div className="flex-shrink-0 p-4 bg-white dark:bg-neutral-950">
+          <div className="max-w-3xl mx-auto">
+            {/* Example Prompts Carousel (only show when no messages) */}
+            {messages.length === 0 && (
+              <div className="relative mb-4">
+                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                  {examplePrompts.map((example, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setInput(example.description)}
+                      className="flex-shrink-0 group cursor-pointer"
+                    >
+                      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 hover:border-neutral-300 dark:hover:border-neutral-700 transition-colors min-w-[200px] max-w-[220px]">
+                        <h3 className="font-semibold text-sm mb-1 text-neutral-900 dark:text-neutral-100">
+                          {example.title}
+                        </h3>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">
+                          {example.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="rounded-2xl overflow-hidden p-3 border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-lg">
               {/* Quick actions */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-3 scrollbar-hide">
                 {quickActions.map((action) => (
                   <button
                     key={action.label}
@@ -1116,10 +1146,10 @@ export default function PlaygroundChatPage() {
                         textareaRef.current?.focus()
                       }
                     }}
-                    className="inline-flex items-center gap-2 px-4 h-9 rounded-full border bg-background shadow-sm hover:bg-accent transition-colors text-sm font-medium whitespace-nowrap"
+                    className="inline-flex items-center gap-2 px-3 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors text-sm font-medium whitespace-nowrap"
                   >
-                    <action.icon className="h-4 w-4" />
-                    <span>{action.label}</span>
+                    <action.icon className="h-3.5 w-3.5" />
+                    <span className="text-xs">{action.label}</span>
                   </button>
                 ))}
               </div>
@@ -1147,7 +1177,7 @@ export default function PlaygroundChatPage() {
               )}
 
               {/* Input */}
-              <div className="rounded-lg bg-background border focus-within:bg-accent transition-colors">
+              <div className="rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 focus-within:border-neutral-300 dark:focus-within:border-neutral-600 transition-colors">
                 <textarea
                   ref={textareaRef}
                   value={input}
@@ -1159,7 +1189,7 @@ export default function PlaygroundChatPage() {
                     }
                   }}
                   placeholder="Start a new message..."
-                  className="w-full bg-transparent px-2 py-2 resize-none focus:outline-none text-sm"
+                  className="w-full bg-transparent px-3 py-2 resize-none focus:outline-none text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500"
                   rows={1}
                   style={{ maxHeight: '200px' }}
                   disabled={isGenerating}
@@ -1171,17 +1201,17 @@ export default function PlaygroundChatPage() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => setShowSettings(!showSettings)}
-                    className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400"
                     aria-label="Settings"
                   >
-                    <Settings className="h-5 w-5" />
+                    <Settings className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400"
                     aria-label="Attach file"
                   >
-                    <Paperclip className="h-5 w-5" />
+                    <Paperclip className="h-4 w-4" />
                   </button>
                   <input
                     ref={fileInputRef}
@@ -1192,26 +1222,26 @@ export default function PlaygroundChatPage() {
                     className="hidden"
                   />
                   <button
-                    className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-accent transition-colors"
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400"
                     aria-label="Drawing"
                   >
-                    <Wand2 className="h-5 w-5" />
+                    <Wand2 className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-                    className="inline-flex items-center gap-2 px-3 h-9 rounded-md hover:bg-accent transition-colors"
+                    className="inline-flex items-center gap-2 px-2 h-8 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-neutral-600 dark:text-neutral-400"
                   >
-                    <Globe className="h-5 w-5" />
+                    <Globe className="h-4 w-4" />
                     <span className="text-sm">Web search</span>
-                    <div className={`w-10 h-5 rounded-full transition-colors ${webSearchEnabled ? 'bg-foreground' : 'bg-muted'}`}>
-                      <div className={`h-4 w-4 rounded-full bg-white shadow transform transition-transform m-0.5 ${webSearchEnabled ? 'translate-x-5' : ''}`} />
+                    <div className={`w-9 h-4 rounded-full transition-colors ${webSearchEnabled ? 'bg-purple-600' : 'bg-neutral-300 dark:bg-neutral-600'}`}>
+                      <div className={`h-3 w-3 rounded-full bg-white shadow transform transition-transform m-0.5 ${webSearchEnabled ? 'translate-x-5' : ''}`} />
                     </div>
                   </button>
                 </div>
                 <button
                   onClick={handleSubmit}
                   disabled={(!input.trim() && attachments.length === 0) || isGenerating}
-                  className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 transition-all"
+                  className="h-9 w-9 inline-flex items-center justify-center rounded-full bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
                 >
                   <ArrowUp className="h-4 w-4" />
                 </button>
