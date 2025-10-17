@@ -28,6 +28,7 @@ import { ArtifactViewer } from '@/components/playground/artifact-viewer'
 import { ArtifactButton } from '@/components/playground/artifact-button'
 import { ArtifactCard } from '@/components/playground/artifact-card'
 import { WorkspaceIDE } from '@/components/playground/workspace-ide'
+import { ThinkingDisplay, extractThinking } from '@/components/playground/thinking-display'
 import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
 import { extractArtifactsFromResponse } from '@/lib/code-detector'
 import { parseArtifactResponse } from '@/lib/artifact-parser'
@@ -55,6 +56,7 @@ interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  thinking?: string // Model reasoning/thinking process
   cost?: number
   timestamp: Date
   responses?: ModelResponse[] // For multi-model assistant messages
@@ -551,11 +553,16 @@ export default function PlaygroundChatPage() {
       // Wait for all streams to complete
       await Promise.all(streamPromises)
 
+      // Extract thinking from responses
+      const fullContent = Object.values(modelResponses).map(r => r.content).join('\n\n---\n\n')
+      const { thinking, cleanContent } = extractThinking(fullContent)
+
       // Create assistant message with all model responses
       const assistantMessage: Message = {
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: Object.values(modelResponses).map(r => r.content).join('\n\n---\n\n'),
+        content: cleanContent || fullContent, // Use cleaned content if thinking was extracted
+        thinking: thinking || undefined, // Store thinking separately
         timestamp: new Date(),
         responses: selectedModels.map(modelId => ({
           modelId,
@@ -568,7 +575,7 @@ export default function PlaygroundChatPage() {
 
       // Auto-detect code and create artifacts
       const createdArtifactIds: string[] = []
-      const fullContent = Object.values(modelResponses).map(r => r.content).join('\n\n')
+      // Use the fullContent from above (already defined on line 557)
 
       // Try structured parsing first (XML/JSON)
       const structuredArtifact = parseArtifactResponse(fullContent)
@@ -1015,11 +1022,19 @@ export default function PlaygroundChatPage() {
                   <div className="space-y-2">
                     <div className="flex gap-3 justify-start">
                       <div className="rounded-lg p-4 max-w-[80%] bg-card border">
+                        {/* Thinking Display */}
+                        {message.thinking && (
+                          <ThinkingDisplay thinking={message.thinking} className="mb-3" />
+                        )}
+
+                        {/* Message Content */}
                         <div className="prose dark:prose-invert max-w-none">
                           <ReactMarkdown>
                             {message.content}
                           </ReactMarkdown>
                         </div>
+
+                        {/* Cost */}
                         {message.cost !== undefined && message.cost > 0 && (
                           <div className="mt-2 text-xs opacity-70">
                             Cost: ${message.cost.toFixed(6)}

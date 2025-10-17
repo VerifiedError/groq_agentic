@@ -149,11 +149,13 @@ export async function POST(request: NextRequest) {
               completion_tokens: usage.completion_tokens || 0,
               total_tokens: usage.total_tokens || 0,
               cached_tokens: usage.prompt_tokens_details?.cached_tokens || 0,
+              reasoning_tokens: usage.completion_tokens_details?.reasoning_tokens || 0,
             } : {
               prompt_tokens: 0,
               completion_tokens: 0,
               total_tokens: 0,
               cached_tokens: 0,
+              reasoning_tokens: 0,
             },
             cost,
           }
