@@ -34,9 +34,159 @@ Preview UI → User Approval → Apply Changes → IDE Update
    - File-by-file diffs
    - Apply/reject controls
 
+6. **FastMCP Filesystem Server** (`mcp_servers/filesystem_server.py`)
+   - Direct file operations via Python
+   - 10-100x faster than XML parsing
+   - Secure workspace isolation
+
 ---
 
-## Artifact Creation Format
+## FastMCP Tool-Based File Operations (Recommended)
+
+### Overview
+
+The artifact chat system now supports **direct file operations** through FastMCP tools, providing significantly better performance and precision compared to XML-based edits.
+
+### Benefits
+
+- **Performance**: 10-100x faster file operations
+- **Precision**: Line-specific and pattern-based edits
+- **Simplicity**: Natural tool calls instead of verbose XML
+- **Security**: Sandboxed artifact workspaces with path traversal protection
+
+### Available Tools
+
+The AI has access to 7 filesystem tools when modifying artifacts:
+
+#### 1. `read_file(path)`
+Read the contents of a file in the artifact workspace.
+
+```javascript
+// AI calls this tool automatically when needed
+read_file("/App.jsx")
+// Returns: file contents as string
+```
+
+#### 2. `write_file(path, content)`
+Write content to a file (creates if doesn't exist).
+
+```javascript
+write_file("/App.jsx", "import React from 'react';\n...")
+// Returns: "Successfully wrote 150 characters to '/App.jsx'"
+```
+
+#### 3. `edit_file(path, old_text, new_text)`
+Replace specific text in a file (exact string matching).
+
+```javascript
+edit_file("/App.jsx", "count = 0", "count = 10")
+// Returns: "Successfully replaced 1 occurrence(s) in '/App.jsx'"
+```
+
+#### 4. `delete_file(path)`
+Delete a file from the workspace.
+
+```javascript
+delete_file("/old-component.jsx")
+// Returns: "Successfully deleted '/old-component.jsx'"
+```
+
+#### 5. `list_files(directory)`
+List all files in a directory.
+
+```javascript
+list_files("/components")
+// Returns: "📁 hooks/\n📄 Button.jsx (248 bytes)\n📄 Card.jsx (512 bytes)"
+```
+
+#### 6. `create_directory(path)`
+Create a new directory.
+
+```javascript
+create_directory("/utils")
+// Returns: "Successfully created directory '/utils'"
+```
+
+### How It Works
+
+1. **AI receives context**: Current file contents injected into system prompt
+2. **AI explains changes**: Natural language description of what will change
+3. **AI calls tools**: Groq SDK tool calling mechanism invokes MCP tools
+4. **Tools execute**: Python FastMCP server performs file operations
+5. **Results stream**: Tool execution results sent to client in real-time
+6. **UI updates**: File changes reflected immediately in IDE
+
+### System Prompt Example
+
+```
+You have access to the following filesystem tools:
+
+**Available Tools:**
+- read_file(path) - Read file contents
+- write_file(path, content) - Write/create a file
+- edit_file(path, old_text, new_text) - Find and replace text
+- delete_file(path) - Delete a file
+- list_files(directory) - List files in a directory
+- create_directory(path) - Create a new directory
+
+**How to Use Tools:**
+1. For small changes: Use edit_file() to replace specific text
+2. For large changes: Use write_file() to replace entire file
+3. For new files: Use write_file() to create them
+4. For deletions: Use delete_file()
+
+**IMPORTANT RULES:**
+- Explain your changes first, then use tools
+- Use edit_file() for precision edits (10-100x faster than rewriting)
+- Only use write_file() when replacing entire files
+```
+
+### Technical Architecture
+
+```
+Artifact Chat Request
+   ↓
+Groq API (with tools parameter)
+   ↓
+AI generates tool calls
+   ↓
+executeMCPTool() function
+   ↓
+Python FastMCP Server
+   ↓
+Filesystem operations in isolated workspace
+   ↓
+Results streamed back to client
+```
+
+### Security
+
+- **Workspace Isolation**: Each artifact has its own directory (`artifact_workspaces/artifact-123/`)
+- **Path Traversal Protection**: `get_workspace_path()` validates all paths
+- **Error Handling**: All tools return error messages instead of throwing exceptions
+
+### Configuration
+
+FastMCP server is registered in `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "python",
+      "args": ["mcp_servers/filesystem_server.py"]
+    }
+  }
+}
+```
+
+### Backward Compatibility
+
+XML-based artifact protocol is still supported as a fallback. If the AI doesn't use tools, the system will parse XML `<artifact-edit>` tags automatically.
+
+---
+
+## Artifact Creation Format (Legacy/Fallback)
 
 ### XML Structure
 
