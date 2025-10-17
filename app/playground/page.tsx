@@ -65,7 +65,7 @@ export default function PlaygroundPage() {
 
   // Request history
   const [requestHistory, setRequestHistory] = useState<RequestLog[]>([])
-  const [showHistory, setShowHistory] = useState(true)
+  const [showHistory, setShowHistory] = useState(false)
 
   // Load request history and prompts from localStorage
   useEffect(() => {
@@ -333,11 +333,11 @@ export default function PlaygroundPage() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Playground</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="text-xl font-bold">Playground</h1>
+              <p className="text-xs text-muted-foreground">
                 Test Groq models with custom parameters
               </p>
             </div>
@@ -370,7 +370,7 @@ export default function PlaygroundPage() {
 
         {/* Overall Usage Statistics */}
         {overallStats && (
-          <div className="container mx-auto px-4 pt-2 pb-1">
+          <div className="container mx-auto px-4 py-1.5">
             <div className="flex items-center justify-between px-3 py-2 bg-muted/30 rounded-md border text-xs">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-1.5">
@@ -419,13 +419,13 @@ export default function PlaygroundPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
-        <div className="container mx-auto px-4 py-6 h-full">
-          <div className="grid grid-cols-2 gap-6 h-full">
+        <div className="container mx-auto px-4 py-3 h-full">
+          <div className="grid grid-cols-2 gap-4 h-full">
             {/* Left: Input */}
-            <div className="flex flex-col gap-4 h-full">
+            <div className="flex flex-col gap-3 h-full">
               {/* System Prompt */}
               <div>
-                <label className="block text-sm font-medium mb-2">
+                <label className="block text-sm font-medium mb-1.5">
                   System Prompt (Optional)
                 </label>
                 <textarea
@@ -433,13 +433,13 @@ export default function PlaygroundPage() {
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   onBlur={handleSystemPromptBlur}
                   placeholder="You are a helpful assistant..."
-                  className="w-full h-24 px-3 py-2 text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full h-20 px-3 py-2 text-sm bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
 
               {/* User Prompt */}
-              <div className="flex-1 flex flex-col">
-                <label className="block text-sm font-medium mb-2">
+              <div className="flex-1 flex flex-col min-h-0">
+                <label className="block text-sm font-medium mb-1.5">
                   User Prompt
                 </label>
                 <textarea
@@ -453,7 +453,7 @@ export default function PlaygroundPage() {
 
               {/* Parameters Panel */}
               {showParams && (
-                <div className="border rounded-lg p-4 space-y-3 bg-card">
+                <div className="border rounded-lg p-3 space-y-2.5 bg-card">
                   <h3 className="text-sm font-semibold mb-3">Parameters</h3>
 
                   {/* Temperature */}
@@ -560,7 +560,7 @@ export default function PlaygroundPage() {
             </div>
 
             {/* Right: Output */}
-            <div className="flex flex-col gap-3 h-full">
+            <div className="flex flex-col gap-2.5 h-full min-h-0">
               <div className="flex items-center justify-between">
                 <label className="block text-sm font-medium">Output</label>
                 {output && (
@@ -575,7 +575,7 @@ export default function PlaygroundPage() {
               </div>
 
               {/* Output Display */}
-              <div className="flex-1 p-4 bg-card border rounded-lg overflow-y-auto">
+              <div className="flex-1 p-3 bg-card border rounded-lg overflow-y-auto min-h-0">
                 {output ? (
                   <div className="prose prose-sm max-w-none dark:prose-invert">
                     <ReactMarkdown>{output}</ReactMarkdown>
@@ -589,8 +589,8 @@ export default function PlaygroundPage() {
 
               {/* Stats */}
               {(usage || cost !== null) && (
-                <div className="p-4 bg-card border rounded-lg">
-                  <h3 className="text-sm font-semibold mb-2">Statistics</h3>
+                <div className="p-3 bg-card border rounded-lg">
+                  <h3 className="text-sm font-semibold mb-1.5">Statistics</h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     {usage && (
                       <>
@@ -646,7 +646,7 @@ export default function PlaygroundPage() {
 
           {/* Request History */}
           {requestHistory.length > 0 && (
-            <div className="mt-6">
+            <div className="mt-3">
               <div className="flex items-center justify-between mb-3">
                 <button
                   onClick={() => setShowHistory(!showHistory)}
