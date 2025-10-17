@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Search, X, Loader2, MessageSquare, DollarSign } from 'lucide-react'
+import { Plus, Search, X, Loader2, MessageSquare, DollarSign, Flask } from 'lucide-react'
+import { useRouter, usePathname } from 'next/navigation'
 import useAgenticSessionStore from '@/stores/agentic-session-store'
 import { SessionListItem } from './session-list-item'
 import { NewSessionButton } from './new-session-button'
@@ -12,6 +13,9 @@ interface SessionSidebarProps {
 }
 
 export function SessionSidebar({ className }: SessionSidebarProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+
   const {
     sessions,
     activeSessionId,
@@ -40,6 +44,36 @@ export function SessionSidebar({ className }: SessionSidebarProps) {
 
   return (
     <div className={cn('flex flex-col h-full bg-card border-r', className)}>
+      {/* Navigation */}
+      <div className="p-3 border-b bg-muted/30">
+        <div className="flex gap-1 p-1 bg-background rounded-lg">
+          <button
+            onClick={() => router.push('/')}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+              pathname === '/'
+                ? 'bg-primary text-primary-foreground'
+                : 'hover:bg-accent'
+            )}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Chat
+          </button>
+          <button
+            onClick={() => router.push('/playground')}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+              pathname === '/playground'
+                ? 'bg-primary text-primary-foreground'
+                : 'hover:bg-accent'
+            )}
+          >
+            <Flask className="w-4 h-4" />
+            Playground
+          </button>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="p-4 border-b">
         <div className="flex items-center justify-between mb-4">
