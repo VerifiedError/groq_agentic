@@ -45,7 +45,7 @@ function LoginContent() {
             {APP_VERSION} © 2025
           </p>
           <p className="text-xs font-mono text-gray-400">
-            Login Fix v11 - Middleware Debug Logging
+            Login Fix v12 - Remove Custom Cookie Config
           </p>
         </div>
       </div>

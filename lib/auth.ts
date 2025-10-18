@@ -168,15 +168,7 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
     maxAge: 7 * 24 * 60 * 60, // 7 days
   },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
-      },
-    },
-  },
+  // Removed custom cookie configuration - let NextAuth handle it automatically
+  // This fixes issues with custom domains on Vercel where cookie domain/name
+  // needs to be dynamically configured based on NEXTAUTH_URL
 }
