@@ -30,18 +30,19 @@ This directory contains comprehensive implementation issues for the Playground p
 | 78 | Security Hardening & Vulnerability Fixes | [security-hardening.md](security-hardening.md) | 24-32 hrs | **CRITICAL** | Open |
 | 79 | Deployment Automation & DevOps | [deployment-devops.md](deployment-devops.md) | 20-30 hrs | High | Open |
 | 80 | Admin Dashboard - Control Center | [admin-dashboard.md](admin-dashboard.md) | 30-40 hrs | High | Open |
+| 81 | Model Metadata & Capability Detection | [model-metadata-capabilities.md](model-metadata-capabilities.md) | 16-24 hrs | High | Open |
 
 ---
 
 ## 📊 Project Statistics
 
-**Total Issues**: 10 (excluding completed phases)
-**Total Estimated Time**: 192-264 hours (24-33 workdays)
-**Files Created**: 10 comprehensive markdown files
+**Total Issues**: 11 (excluding completed phases)
+**Total Estimated Time**: 208-288 hours (26-36 workdays)
+**Files Created**: 11 comprehensive markdown files
 
 ### Breakdown by Priority:
 - 🔴 **Critical** (Security): 24-32 hours
-- 🟠 **High** (Performance, DevOps, Admin): 66-94 hours
+- 🟠 **High** (Performance, DevOps, Admin, Model Capabilities): 82-118 hours
 - 🟡 **Medium** (AI Features, Testing, Settings): 50-70 hours
 - 🟢 **Low-Medium** (UI/UX, Sessions): 44-56 hours
 
@@ -49,16 +50,17 @@ This directory contains comprehensive implementation issues for the Playground p
 
 ## 🎯 Recommended Implementation Order
 
-1. **Issue #78** - Security Hardening (CRITICAL before production)
-2. **Issue #80** - Admin Dashboard (Management control)
-3. **Issue #77** - Performance Optimization (Scalability)
-4. **Issue #79** - DevOps & CI/CD (Automation)
-5. **Issue #74** - Testing Suite (Quality assurance)
-6. **Issue #71** - Advanced Settings (Complete Phase 3)
-7. **Issue #72** - Cost Tracking (Complete Phase 4)
-8. **Issue #73** - Session Enhancements (Power users)
-9. **Issue #75** - UI/UX Polish (User experience)
-10. **Issue #76** - Advanced AI Features (Advanced capabilities)
+1. **Issue #81** - Model Metadata & Capabilities (Foundation for all features)
+2. **Issue #78** - Security Hardening (CRITICAL before production)
+3. **Issue #80** - Admin Dashboard (Management control)
+4. **Issue #77** - Performance Optimization (Scalability)
+5. **Issue #79** - DevOps & CI/CD (Automation)
+6. **Issue #74** - Testing Suite (Quality assurance)
+7. **Issue #71** - Advanced Settings (Complete Phase 3)
+8. **Issue #72** - Cost Tracking (Complete Phase 4)
+9. **Issue #73** - Session Enhancements (Power users)
+10. **Issue #75** - UI/UX Polish (User experience)
+11. **Issue #76** - Advanced AI Features (Advanced capabilities)
 
 ---
 
@@ -94,6 +96,7 @@ Every issue includes:
 - **Issue #78**: [Security Hardening & Vulnerability Fixes](https://github.com/VerifiedError/groq_agentic/issues/78)
 - **Issue #79**: [Deployment Automation & DevOps](https://github.com/VerifiedError/groq_agentic/issues/79)
 - **Issue #80**: [Admin Dashboard - Complete Control Center](https://github.com/VerifiedError/groq_agentic/issues/80)
+- **Issue #81**: [Model Metadata & Capability Detection](https://github.com/VerifiedError/groq_agentic/issues/81)
 
 ---
 

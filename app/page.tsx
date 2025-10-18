@@ -21,12 +21,14 @@ import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 import { AdminDashboard } from '@/components/admin/admin-dashboard'
 import { SessionDrawer } from '@/components/agentic/session-drawer'
+import { ResizableSessionSidebar } from '@/components/agentic/resizable-session-sidebar'
 import { useSessionStore } from '@/stores/agentic-session-store'
 import { isAdmin } from '@/lib/admin-utils'
 import { APP_VERSION, APP_NAME } from '@/lib/version'
 import { generateSessionName, isDefaultSessionName } from '@/lib/session-name-generator'
 import { ImageUpload } from '@/components/agentic/image-upload'
 import { VisionMessage } from '@/components/agentic/vision-message'
+import { MessageCostBadge } from '@/components/agentic/message-cost-badge'
 import { isVisionModel, formatVisionMessages } from '@/lib/vision-utils'
 
 interface Model {
@@ -395,6 +397,15 @@ export default function HomePage() {
                           reasoning={message.reasoning}
                         />
                       </div>
+                      {/* Cost Badge for Assistant Messages */}
+                      {message.role === 'assistant' && (
+                        <MessageCostBadge
+                          cost={message.cost}
+                          inputTokens={message.inputTokens}
+                          outputTokens={message.outputTokens}
+                          cachedTokens={message.cachedTokens}
+                        />
+                      )}
                     </div>
 
                     {/* User Avatar */}
@@ -489,11 +500,19 @@ export default function HomePage() {
         onSettingsChange={setSettings}
       />
 
-      {/* Session Drawer */}
-      <SessionDrawer
-        isOpen={showSessionDrawer}
-        onClose={() => setShowSessionDrawer(false)}
-      />
+      {/* Session Drawer (Mobile) / Resizable Sidebar (Desktop) */}
+      <div className="lg:hidden">
+        <SessionDrawer
+          isOpen={showSessionDrawer}
+          onClose={() => setShowSessionDrawer(false)}
+        />
+      </div>
+      <div className="hidden lg:block">
+        <ResizableSessionSidebar
+          isOpen={showSessionDrawer}
+          onClose={() => setShowSessionDrawer(false)}
+        />
+      </div>
 
       {/* Admin Dashboard */}
       <AdminDashboard
