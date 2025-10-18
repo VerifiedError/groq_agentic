@@ -59,6 +59,7 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       const result = await signIn('credentials', {
         username: data.username,
         password: data.password,
+        callbackUrl: redirectTo,
         redirect: false,
       })
 
@@ -72,14 +73,15 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       setDebugInfo(`Result: ${result?.ok ? 'Success' : 'Failed'} (Status: ${result?.status})`)
 
       if (result?.ok) {
-        // Successful login - use hard redirect to ensure session is loaded
+        // Successful login - wait longer before redirect to ensure cookie is set
         console.log('[Login] Success - redirecting to:', redirectTo)
         setDebugInfo('Login successful! Redirecting...')
 
+        // Wait 1.5 seconds to ensure session cookie is fully set
+        await new Promise(resolve => setTimeout(resolve, 1500))
+
         // Use window.location for hard redirect to ensure fresh session
-        setTimeout(() => {
-          window.location.href = redirectTo
-        }, 500) // Small delay to show success message
+        window.location.href = redirectTo
       } else {
         // Authentication failed - show specific error from NextAuth
         const errorMessage = result?.error
@@ -90,15 +92,16 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
         setError(errorMessage)
         setDebugInfo('')
         setValue('password', '') // Clear password on error
+        setIsLoading(false)
       }
     } catch (err) {
       console.error('[Login] Exception:', err)
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during login'
       setError(errorMessage)
       setDebugInfo('')
-    } finally {
       setIsLoading(false)
     }
+    // Don't set isLoading to false on success - let the redirect happen
   }
 
   return (

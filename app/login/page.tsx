@@ -44,6 +44,9 @@ function LoginContent() {
           <p className="text-xs text-gray-400 dark:text-gray-500">
             {APP_VERSION} © 2025
           </p>
+          <p className="text-xs font-mono text-gray-400">
+            Login Fix v3
+          </p>
         </div>
       </div>
     </div>
