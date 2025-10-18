@@ -56,9 +56,6 @@ SETUP_COMPLETE.bat
 # playwright mcp
 .playwright-mcp/
 
-# cleanup archive folder
-DO_NOT_DELETE/
-
 # Python cache
 __pycache__/
 *.py[cod]
