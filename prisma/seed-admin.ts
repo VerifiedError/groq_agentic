@@ -3,10 +3,14 @@
  * Run with: npx ts-node prisma/seed-admin.ts
  */
 
-import { PrismaClient } from '@prisma/client'
-import { hashPassword } from '../lib/auth/password'
+const { PrismaClient } = require('@prisma/client')
+const bcrypt = require('bcrypt')
 
 const prisma = new PrismaClient()
+
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12)
+}
 
 async function seedAdmin() {
   console.log('🌱 Seeding admin user...')
@@ -60,4 +64,4 @@ if (require.main === module) {
     })
 }
 
-export { seedAdmin }
+module.exports = { seedAdmin }
