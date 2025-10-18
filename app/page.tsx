@@ -25,6 +25,9 @@ import { useSessionStore } from '@/stores/agentic-session-store'
 import { isAdmin } from '@/lib/admin-utils'
 import { APP_VERSION, APP_NAME } from '@/lib/version'
 import { generateSessionName, isDefaultSessionName } from '@/lib/session-name-generator'
+import { ImageUpload } from '@/components/agentic/image-upload'
+import { VisionMessage } from '@/components/agentic/vision-message'
+import { isVisionModel, formatVisionMessages } from '@/lib/vision-utils'
 
 interface Model {
   id: string
@@ -43,6 +46,7 @@ export default function HomePage() {
   const router = useRouter()
 
   const [input, setInput] = useState('')
+  const [images, setImages] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingReasoning, setStreamingReasoning] = useState('')
@@ -127,6 +131,8 @@ export default function HomePage() {
     if (!input.trim() || isLoading) return
 
     const userInput = input.trim()
+    const userImages = [...images]
+    const isVision = isVisionModel(selectedModel)
 
     // Auto-generate session name from first message
     if (currentSession && messages.length === 0 && isDefaultSessionName(currentSession.name)) {
@@ -134,26 +140,34 @@ export default function HomePage() {
       updateSessionName(currentSession.id, generatedName)
     }
 
-    // Add user message to session store
+    // Add user message to session store with images
     await addMessage({
       role: 'user',
       content: userInput,
+      images: userImages.length > 0 ? userImages : undefined,
     })
 
     setInput('')
+    setImages([])
     setIsLoading(true)
     setStreamingContent('')
     setStreamingReasoning('')
 
+    // Create updated messages array including the new user message
+    const updatedMessages = [
+      ...messages,
+      { role: 'user' as const, content: userInput, images: userImages.length > 0 ? userImages : undefined },
+    ]
+
     try {
+      // Format messages for API (vision or text)
+      const formattedMessages = formatVisionMessages(updatedMessages, isVision)
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          messages: formattedMessages,
           model: selectedModel,
           temperature: settings.temperature,
           maxTokens: settings.maxTokens,
@@ -358,9 +372,12 @@ export default function HomePage() {
                         {message.role === 'assistant' && message.reasoning && (
                           <ReasoningDisplay reasoning={message.reasoning} className="mb-3" />
                         )}
-                        <div className={`prose dark:prose-invert max-w-none ${message.role === 'user' && 'prose-invert'}`}>
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </div>
+                        <VisionMessage
+                          role={message.role}
+                          content={message.content}
+                          images={message.images}
+                          reasoning={message.reasoning}
+                        />
                       </div>
                     </div>
 
@@ -407,7 +424,13 @@ export default function HomePage() {
 
         {/* Input Area */}
         <div className="border-t bg-card/50 backdrop-blur-sm safe-bottom">
-          <div className="max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
+          <div className="max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4 space-y-2">
+            {/* Image Upload (only show for vision models) */}
+            {isVisionModel(selectedModel) && (
+              <ImageUpload images={images} onImagesChange={setImages} />
+            )}
+
+            {/* Text Input Form */}
             <form onSubmit={handleSubmit} className="flex gap-2 md:gap-3">
               <textarea
                 ref={textareaRef}
