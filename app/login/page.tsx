@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { LoginForm } from '@/components/auth/login-form'
+import { APP_VERSION } from '@/lib/version'
 
 function LoginContent() {
   const { data: session, status } = useSession()
@@ -56,7 +57,7 @@ function LoginContent() {
             Powered by Groq Compound AI
           </p>
           <p className="text-xs text-gray-400 dark:text-gray-500">
-            v1.0.0 © 2025
+            {APP_VERSION} © 2025
           </p>
         </div>
       </div>
