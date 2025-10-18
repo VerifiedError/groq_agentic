@@ -1,80 +1,146 @@
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from '@/lib/prisma'
 import type { NextAuthOptions } from 'next-auth'
-import bcrypt from 'bcrypt'
+import { verifyPassword } from '@/lib/auth/password'
+import {
+  checkRateLimit,
+  recordFailedAttempt,
+  clearRateLimit,
+} from '@/lib/auth/login-rate-limit'
 
-// Hardcoded credentials for single-user deployment
-const VALID_USERNAME = 'addison'
-const VALID_PASSWORD_HASH = '$2b$10$rQ7Z8Z8Z8Z8Z8Z8Z8Z8Z8O' // Will be replaced with actual hash
+/**
+ * Get client IP address from request
+ * @param req - Request object
+ * @returns IP address or 'unknown'
+ */
+function getClientIp(req: any): string {
+  // Check various headers for IP
+  const forwarded = req.headers?.['x-forwarded-for']
+  if (forwarded) {
+    return forwarded.split(',')[0].trim()
+  }
 
-// Hash the password on first import (dev only - in production, use pre-hashed)
-let PASSWORD_HASH: string | null = null
-;(async () => {
-  PASSWORD_HASH = await bcrypt.hash('ac783d', 10)
-})()
+  const realIp = req.headers?.['x-real-ip']
+  if (realIp) {
+    return realIp
+  }
+
+  return req.connection?.remoteAddress || 'unknown'
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: 'Credentials',
       credentials: {
-        username: { label: "Username", type: "text" },
-        password: { label: "Password", type: "password" }
+        username: { label: 'Username', type: 'text' },
+        password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.username || !credentials?.password) {
           return null
         }
 
-        // Validate credentials
-        if (credentials.username !== VALID_USERNAME) {
+        const username = credentials.username.toLowerCase().trim()
+        const password = credentials.password
+
+        // Get client IP for rate limiting
+        const ip = getClientIp(req)
+
+        // Check rate limit
+        const rateLimit = checkRateLimit(username, ip)
+        if (rateLimit.isBlocked) {
+          console.warn(`Rate limit exceeded for ${username} from ${ip}`)
+          throw new Error(
+            `Too many failed attempts. Try again in ${rateLimit.remainingTime} minutes.`
+          )
+        }
+
+        // Find user by username (case-insensitive)
+        const user = await prisma.user.findFirst({
+          where: {
+            username: {
+              equals: username,
+              mode: 'insensitive',
+            },
+          },
+        })
+
+        // User not found
+        if (!user) {
+          recordFailedAttempt(username, ip)
           return null
         }
 
-        // Wait for password hash to be generated if not ready yet
-        if (!PASSWORD_HASH) {
-          PASSWORD_HASH = await bcrypt.hash('ac783d', 10)
+        // Check if user is active
+        if (!user.isActive) {
+          console.warn(`Inactive user attempted login: ${username}`)
+          return null
         }
 
         // Verify password
-        const isValid = await bcrypt.compare(credentials.password, PASSWORD_HASH)
+        const isValid = await verifyPassword(password, user.passwordHash)
+
         if (!isValid) {
+          recordFailedAttempt(username, ip)
           return null
         }
 
-        // Find or create user in database
-        let user = await prisma.user.findUnique({
-          where: { username: VALID_USERNAME }
+        // Successful login - clear rate limit and update lastLoginAt
+        clearRateLimit(username, ip)
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            lastLoginAt: new Date(),
+          },
         })
 
-        if (!user) {
-          // Create user on first successful login
-          user = await prisma.user.create({
-            data: {
-              username: VALID_USERNAME,
-              email: 'addison@agentic.local',
-              name: 'Addison'
-            }
-          })
-        }
-
+        // Return user data for session
         return {
           id: String(user.id),
           email: user.email,
-          name: user.name || user.username || ''
+          name: user.name || user.username,
+          role: user.role,
         }
-      }
-    })
+      },
+    }),
   ],
   callbacks: {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub
+        // Add role to session if available
+        if (token.role) {
+          ;(session.user as any).role = token.role
+        }
       }
       return session
-    }
+    },
+    async jwt({ token, user }) {
+      // Add role to JWT token on login
+      if (user) {
+        token.role = (user as any).role
+      }
+      return token
+    },
   },
   pages: {
-    signIn: '/login'
-  }
+    signIn: '/login',
+  },
+  session: {
+    strategy: 'jwt',
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  },
+  cookies: {
+    sessionToken: {
+      name: `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
 }

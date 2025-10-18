@@ -15,9 +15,14 @@ datasource db {
 model User {
   id               Int       @id @default(autoincrement())
   email            String    @unique
-  username         String?   @unique
+  username         String    @unique // Required, unique, case-insensitive
   name             String?
-  passwordHash     String?   @map("password_hash")
+  passwordHash     String    @map("password_hash") // Required for authentication
+
+  // Security fields
+  role             String    @default("user") // "admin" or "user"
+  isActive         Boolean   @default(true) @map("is_active")
+  lastLoginAt      DateTime? @map("last_login_at")
 
   // User-specific API key (optional - falls back to global if not set)
   apiKey           String?   @map("api_key")
