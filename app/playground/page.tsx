@@ -24,7 +24,9 @@ import {
   Star,
   Sliders,
   MoreHorizontal,
-  RefreshCw
+  RefreshCw,
+  ArrowUpDown,
+  Check
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
@@ -112,6 +114,8 @@ export default function PlaygroundChatPage() {
   const [editingModelIndex, setEditingModelIndex] = useState<number | null>(null)
   const [favoriteModels, setFavoriteModels] = useState<string[]>([])
   const [isTogglingFavorite, setIsTogglingFavorite] = useState<string | null>(null)
+  const [modelSortBy, setModelSortBy] = useState<'name-asc' | 'name-desc' | 'cost-asc' | 'cost-desc' | 'context-asc' | 'context-desc' | 'recent' | 'favorites'>('favorites')
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
 
   // Model Settings
   const [modelSettings, setModelSettings] = useState<Record<string, {
@@ -185,8 +189,18 @@ export default function PlaygroundChatPage() {
     if (status === 'authenticated') {
       fetchModels()
       fetchFavorites()
+      // Load sort preference
+      const savedSort = localStorage.getItem('playground-model-sort')
+      if (savedSort) {
+        setModelSortBy(savedSort as typeof modelSortBy)
+      }
     }
   }, [status])
+
+  // Save sort preference
+  useEffect(() => {
+    localStorage.setItem('playground-model-sort', modelSortBy)
+  }, [modelSortBy])
 
   // Load chat sessions from localStorage
   useEffect(() => {
@@ -436,7 +450,7 @@ export default function PlaygroundChatPage() {
     toast.success('Model duplicated')
   }
 
-  // Filter and sort models based on search query and favorites
+  // Filter and sort models based on search query and sort preference
   const filteredModels = models
     .filter(model =>
       model.displayName.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
@@ -446,12 +460,44 @@ export default function PlaygroundChatPage() {
       const aIsFavorite = favoriteModels.includes(a.id)
       const bIsFavorite = favoriteModels.includes(b.id)
 
-      // Favorites first
-      if (aIsFavorite && !bIsFavorite) return -1
-      if (!aIsFavorite && bIsFavorite) return 1
+      // Calculate total cost (input + output) for cost sorting
+      const aCost = a.inputPricing + a.outputPricing
+      const bCost = b.inputPricing + b.outputPricing
 
-      // Then alphabetically
-      return a.displayName.localeCompare(b.displayName)
+      switch (modelSortBy) {
+        case 'name-asc':
+          return a.displayName.localeCompare(b.displayName)
+
+        case 'name-desc':
+          return b.displayName.localeCompare(a.displayName)
+
+        case 'cost-asc':
+          // Free models first, then by cost
+          if (aCost === 0 && bCost !== 0) return -1
+          if (aCost !== 0 && bCost === 0) return 1
+          return aCost - bCost
+
+        case 'cost-desc':
+          return bCost - aCost
+
+        case 'context-asc':
+          return a.contextWindow - b.contextWindow
+
+        case 'context-desc':
+          return b.contextWindow - a.contextWindow
+
+        case 'recent':
+          // TODO: Implement recent usage tracking
+          // For now, fall back to alphabetical
+          return a.displayName.localeCompare(b.displayName)
+
+        case 'favorites':
+        default:
+          // Favorites first, then alphabetically
+          if (aIsFavorite && !bIsFavorite) return -1
+          if (!aIsFavorite && bIsFavorite) return 1
+          return a.displayName.localeCompare(b.displayName)
+      }
     })
 
   // Handle model selection from dropdown
@@ -1283,7 +1329,7 @@ export default function PlaygroundChatPage() {
               ref={modelDropdownRef}
               className="absolute top-full left-4 right-4 mt-2 max-w-md bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xl z-50 overflow-hidden"
             >
-              {/* Search Bar with Refresh Button */}
+              {/* Search Bar with Refresh and Sort Buttons */}
               <div className="p-3 border-b border-neutral-200 dark:border-neutral-800">
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
@@ -1296,6 +1342,47 @@ export default function PlaygroundChatPage() {
                       className="w-full h-9 pl-9 pr-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       autoFocus
                     />
+                  </div>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowSortDropdown(!showSortDropdown)}
+                      className="flex items-center justify-center h-9 w-9 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                      title="Sort models"
+                    >
+                      <ArrowUpDown className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+                    </button>
+                    {showSortDropdown && (
+                      <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xl z-[60] py-1">
+                        {[
+                          { value: 'favorites', label: 'Favorites First', icon: '⭐' },
+                          { value: 'name-asc', label: 'Name (A-Z)', icon: '🔤' },
+                          { value: 'name-desc', label: 'Name (Z-A)', icon: '🔡' },
+                          { value: 'cost-asc', label: 'Cost (Low to High)', icon: '💰' },
+                          { value: 'cost-desc', label: 'Cost (High to Low)', icon: '💸' },
+                          { value: 'context-asc', label: 'Context (Small)', icon: '📏' },
+                          { value: 'context-desc', label: 'Context (Large)', icon: '📐' },
+                          { value: 'recent', label: 'Recently Used', icon: '🕒' }
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            onClick={() => {
+                              setModelSortBy(option.value as typeof modelSortBy)
+                              setShowSortDropdown(false)
+                              toast.success(`Sorted by: ${option.label}`)
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors text-left"
+                          >
+                            <span className="flex items-center gap-2">
+                              <span>{option.icon}</span>
+                              <span>{option.label}</span>
+                            </span>
+                            {modelSortBy === option.value && (
+                              <Check className="h-4 w-4 text-purple-600" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={refreshModels}
