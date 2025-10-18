@@ -5,25 +5,30 @@ import { Eye, EyeOff } from 'lucide-react'
 
 interface PasswordInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: string
+  borderColor?: 'gray' | 'black'
 }
 
 export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ error, className = '', ...props }, ref) => {
+  ({ error, borderColor = 'gray', className = '', ...props }, ref) => {
     const [showPassword, setShowPassword] = useState(false)
 
     const togglePasswordVisibility = () => {
       setShowPassword((prev) => !prev)
     }
 
+    const borderClass = borderColor === 'black'
+      ? 'border-2 border-black focus:ring-gray-900 focus:border-gray-900 bg-white'
+      : 'border border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white'
+
     return (
       <div className="relative">
         <input
           ref={ref}
           type={showPassword ? 'text' : 'password'}
-          className={`w-full px-4 py-3 pr-12 border rounded-lg transition-all focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white ${
+          className={`w-full px-4 py-3 pr-12 rounded-lg transition-all focus:ring-2 ${
             error
               ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-300 dark:border-gray-600'
+              : borderClass
           } ${className}`}
           {...props}
         />

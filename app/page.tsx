@@ -21,7 +21,7 @@ import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 import { AdminDashboard } from '@/components/admin/admin-dashboard'
 import { isAdmin } from '@/lib/admin-utils'
-import { APP_VERSION } from '@/lib/version'
+import { APP_VERSION, APP_NAME } from '@/lib/version'
 
 interface Model {
   id: string
@@ -190,7 +190,7 @@ export default function HomePage() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 border-b bg-card/50 backdrop-blur-sm safe-top">
         <div className="flex items-center justify-between px-3 py-3">
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold">Agentic</h1>
+            <h1 className="text-lg font-semibold">{APP_NAME}</h1>
             <span className="text-xs text-muted-foreground">{APP_VERSION}</span>
           </div>
           <div className="flex items-center gap-2">
@@ -226,7 +226,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold">Agentic Playground</h1>
+              <h1 className="text-xl font-bold">{APP_NAME}</h1>
               <span className="text-sm text-muted-foreground">{APP_VERSION}</span>
             </div>
             <button

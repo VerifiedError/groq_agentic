@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2, User, Lock } from 'lucide-react'
 import { PasswordInput } from './password-input'
+import Link from 'next/link'
 
 const loginSchema = z.object({
   username: z
@@ -79,12 +80,12 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       <div>
         <label
           htmlFor="username"
-          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          className="block text-sm font-medium text-gray-900 mb-2"
         >
           Username
         </label>
         <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
             <User className="w-5 h-5" />
           </div>
           <input
@@ -93,17 +94,17 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
             autoComplete="username"
             autoFocus
             disabled={isLoading}
-            className={`w-full pl-11 pr-4 py-3 border rounded-lg transition-all focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`w-full pl-11 pr-4 py-3 bg-white border-2 rounded-lg transition-all focus:ring-2 focus:ring-gray-900 focus:border-gray-900 disabled:opacity-50 disabled:cursor-not-allowed ${
               errors.username
-                ? 'border-red-500 focus:ring-red-500'
-                : 'border-gray-300 dark:border-gray-600'
+                ? 'border-red-500'
+                : 'border-black'
             }`}
             placeholder="Enter your username"
             {...register('username')}
           />
         </div>
         {errors.username && (
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+          <p className="mt-1 text-sm text-red-600">
             {errors.username.message}
           </p>
         )}
@@ -113,12 +114,12 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       <div>
         <label
           htmlFor="password"
-          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+          className="block text-sm font-medium text-gray-900 mb-2"
         >
           Password
         </label>
         <div className="relative">
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 z-10">
             <Lock className="w-5 h-5" />
           </div>
           <PasswordInput
@@ -128,11 +129,12 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
             placeholder="Enter your password"
             error={errors.password?.message}
             className="pl-11"
+            borderColor="black"
             {...register('password')}
           />
         </div>
         {errors.password && (
-          <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+          <p className="mt-1 text-sm text-red-600">
             {errors.password.message}
           </p>
         )}
@@ -145,29 +147,22 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
             id="rememberMe"
             type="checkbox"
             disabled={isLoading}
-            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 disabled:opacity-50"
+            className="w-4 h-4 border-2 border-black rounded focus:ring-gray-900 disabled:opacity-50"
             {...register('rememberMe')}
           />
           <label
             htmlFor="rememberMe"
-            className="ml-2 text-sm text-gray-700 dark:text-gray-300"
+            className="ml-2 text-sm text-gray-700"
           >
             Remember me
           </label>
         </div>
-        <button
-          type="button"
-          className="text-sm text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-          disabled
-        >
-          Forgot password?
-        </button>
       </div>
 
       {/* Error Display */}
       {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
+          <p className="text-sm text-red-600">{error}</p>
         </div>
       )}
 
@@ -175,7 +170,7 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-blue-400 disabled:to-purple-400 text-white font-semibold rounded-lg transition-all duration-200 focus:ring-4 focus:ring-blue-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full py-3 bg-black hover:bg-gray-800 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-all duration-200 focus:ring-4 focus:ring-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {isLoading ? (
           <>
@@ -186,6 +181,19 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
           'Sign In'
         )}
       </button>
+
+      {/* Register Link */}
+      <div className="text-center">
+        <p className="text-sm text-gray-600">
+          Don't have an account?{' '}
+          <Link
+            href="/register"
+            className="font-medium text-gray-900 hover:underline"
+          >
+            Register
+          </Link>
+        </p>
+      </div>
     </form>
   )
 }
