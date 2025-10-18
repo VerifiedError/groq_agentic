@@ -86,3 +86,14 @@ backups/
 
 # Vercel
 .vercel
+
+# Local development directories (not production)
+artifact_workspaces/
+mcp_servers/
+docs/
+DO_NOT_DELETE/
+
+# Test files
+*.test.*
+*.spec.*
+test-*.mjs

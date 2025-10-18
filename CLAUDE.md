@@ -253,9 +253,9 @@ DO_NOT_DELETE/                        # Archived legacy code
 
 ---
 
-## 🗂️ Archived Features (DO_NOT_DELETE/)
+## 🗂️ Archived Features (REMOVED from Git - Issue #69)
 
-These features were removed in the major simplification (commit `eed2a80`):
+These features were removed in the major simplification (commit `eed2a80`) and cleaned up from the repository (commit for Issue #69):
 
 ### ❌ Session Management (Removed)
 - Multiple chat sessions with history
@@ -281,7 +281,7 @@ These features were removed in the major simplification (commit `eed2a80`):
 - `/playground` - OpenRouter-style testing interface
 - **Why removed**: Consolidated to single root route `/`
 
-**Note**: All archived code is preserved in `DO_NOT_DELETE/` for reference and potential future restoration.
+**Note**: All archived code (26 files) was removed from git tracking in Issue #69 to clean up the repository. Files still exist locally in `DO_NOT_DELETE/` directory (gitignored) for reference.
 
 ---
 
@@ -516,11 +516,132 @@ function greet(name) {
    - Check for missing `export const dynamic = 'force-dynamic'`
    - Ensure all imports exist (check for archived components)
    - Verify Suspense boundaries for client hooks
+   - Check for bcrypt/native module imports in client components
 9. **Node force-kill**: NEVER run `taskkill /F /IM node.exe` (kills CLI)
+10. **Windows exFAT local builds**: See section below for workarounds
+
+---
+
+## 🪟 Windows Development: exFAT Filesystem Issue
+
+**Problem**: Local builds fail with `EISDIR: illegal operation on a directory, readlink` on Windows when project is on an exFAT-formatted drive (common on D:, E:, external drives).
+
+**Root Cause**:
+- exFAT filesystems don't support symbolic links
+- Next.js/Webpack requires symlinks for module resolution
+- Catch-all routes like `[...nextauth]` trigger `readlink` operations
+
+**Symptoms**:
+```
+Error: EISDIR: illegal operation on a directory, readlink 'd:\agentic\app\api\auth\[...nextauth]\route.ts'
+```
+
+**Solutions (Choose One)**:
+
+### Option 1: Vercel-First Deployment (RECOMMENDED)
+Skip local builds entirely and use Vercel's Linux-based build system:
+
+```bash
+# Deploy directly (Vercel builds on Linux, no exFAT issue)
+vercel --prod --yes
+
+# Or use the deployment script
+powershell -ExecutionPolicy Bypass -File vercel-update.ps1
+```
+
+**Advantages**:
+- No local configuration changes needed
+- Faster deployment (no local build time)
+- Same environment as production
+
+**Disadvantages**:
+- Can't test production builds locally
+- Must commit changes to test
+
+### Option 2: Windows Subsystem for Linux (WSL2)
+Develop in WSL2 where filesystems support symlinks:
+
+```bash
+# In WSL2 terminal
+cd /mnt/d/agentic  # Access Windows D: drive
+npm run build       # Works in WSL2
+```
+
+**Advantages**:
+- Can test production builds locally
+- True Linux environment
+- Better performance for Node.js
+
+**Disadvantages**:
+- Requires WSL2 installation
+- File permissions complexity
+
+### Option 3: Move Project to NTFS Drive
+If your C: drive is NTFS-formatted:
+
+```powershell
+# Check filesystem type
+Get-Volume D | Select-Object FileSystemType
+Get-Volume C | Select-Object FileSystemType
+
+# If C: is NTFS, move project
+robocopy d:\agentic c:\agentic /E /MOVE
+```
+
+**Advantages**:
+- Full Windows compatibility
+- Can run local builds
+
+**Disadvantages**:
+- Requires available space on C:
+- May need to reconfigure paths
+
+### Option 4: Reformat Drive to NTFS
+**⚠️ WARNING: This erases ALL data on the drive!**
+
+```powershell
+# DANGER: Backup all data first!
+# Format-Volume -DriveLetter D -FileSystem NTFS
+```
+
+**Recommended Approach**: Use **Option 1** (Vercel-First) for simplicity and speed.
 
 ---
 
 ## 📖 Recent Major Changes
+
+### Repository Cleanup (Issue #69, Oct 2025)
+**What Changed**:
+- Removed 26 archived files from git tracking (`DO_NOT_DELETE/`, `docs/`, `mcp_servers/`)
+- Added professional README.md with comprehensive documentation
+- Updated `.gitignore` to exclude development directories
+- Documented Windows exFAT filesystem issue and workarounds
+- Updated CLAUDE.md with recent fixes and deployment workflow
+
+**Why**:
+- Clean up GitHub repository for production
+- Make project more accessible to new contributors
+- Document known issues and solutions
+- Improve project professionalism
+
+### Build System Fixes (Commits `e526235`, `9faf55f`, Oct 2025)
+**Issue #1: Windows exFAT Build Error (e526235)**:
+- Problem: `EISDIR: illegal operation on a directory` on exFAT drives
+- Root Cause: exFAT doesn't support symlinks required by Webpack
+- Solution: Use Vercel-first deployment (Linux build system)
+- Added webpack config (doesn't fix locally, but good practice)
+
+**Issue #2: Bcrypt Client-Side Import Error (9faf55f)**:
+- Problem: `Module not found: Can't resolve 'fs'` during Vercel build
+- Root Cause: `isAdmin` helper imported bcrypt into client bundle
+- Solution: Created `lib/admin-utils.ts` for client-safe helpers
+- Separated server-only code (`admin-middleware.ts`) from client code
+
+**Files Changed**:
+- `lib/admin-utils.ts` - New file with client-safe `isAdmin` helper
+- `lib/admin-middleware.ts` - Removed `isAdmin` (server-only now)
+- `app/page.tsx` - Updated import to use `lib/admin-utils`
+- `next.config.ts` - Added webpack symlinks fix (for future)
 
 ### Simplification (Commit `eed2a80`, Oct 2025)
 **What Changed**:
@@ -553,6 +674,15 @@ function greet(name) {
 - Suspense-wrapped for Next.js 15
 - Responsive design (mobile + desktop)
 - Middleware-based route protection
+
+### Admin Dashboard (Issues #65-#68, Oct 2025)
+**Features Added**:
+- System statistics dashboard (user/message counts, costs, top models)
+- User management (CRUD operations, role assignment, account status)
+- Model management (view all models, toggle active/inactive, sync from Groq)
+- Shield icon button in header (purple, visible only to admins)
+- Protected API routes with `requireAdmin()` middleware
+- Real-time data refresh and filtering
 
 ---
 
