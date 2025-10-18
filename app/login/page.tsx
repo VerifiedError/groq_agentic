@@ -45,7 +45,7 @@ function LoginContent() {
             {APP_VERSION} © 2025
           </p>
           <p className="text-xs font-mono text-gray-400">
-            Login Fix v5 - NEXTAUTH_URL Added
+            Login Fix v6 - Custom Domain Fix
           </p>
         </div>
       </div>
