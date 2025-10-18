@@ -65,41 +65,20 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       addDebugLog(`Attempting to authenticate: ${data.username}`)
       setDebugInfo(`Authenticating ${data.username}...`)
 
-      const result = await signIn('credentials', {
+      // Use NextAuth's built-in redirect - it handles session cookie timing correctly
+      addDebugLog('Using NextAuth built-in redirect (redirect: true)')
+      await signIn('credentials', {
         username: data.username,
         password: data.password,
         callbackUrl: redirectTo,
-        redirect: false,
+        redirect: true,  // Let NextAuth handle the redirect after session is set
       })
 
-      addDebugLog(`SignIn result: ok=${result?.ok}, status=${result?.status}, error=${result?.error}`)
+      // If we reach here, login failed (redirect would have navigated away)
+      addDebugLog('❌ Login failed - no redirect occurred')
+      setError('Login failed. Please check your credentials.')
+      setIsLoading(false)
 
-      setDebugInfo(`Result: ${result?.ok ? 'Success' : 'Failed'} (Status: ${result?.status})`)
-
-      if (result?.ok) {
-        // Successful login - wait longer before redirect to ensure cookie is set
-        addDebugLog('✅ Authentication successful!')
-        addDebugLog(`Redirect target: ${redirectTo}`)
-        setDebugInfo('Login successful! Redirecting...')
-
-        addDebugLog('Waiting 1.5 seconds for session cookie to set...')
-        await new Promise(resolve => setTimeout(resolve, 1500))
-
-        addDebugLog('Attempting redirect via window.location.href...')
-        // Use window.location for hard redirect to ensure fresh session
-        window.location.href = redirectTo
-      } else {
-        // Authentication failed - show specific error from NextAuth
-        const errorMessage = result?.error
-          ? result.error
-          : `Authentication failed (Status: ${result?.status || 'unknown'})`
-
-        addDebugLog(`❌ Authentication failed: ${errorMessage}`)
-        setError(errorMessage)
-        setDebugInfo('')
-        setValue('password', '') // Clear password on error
-        setIsLoading(false)
-      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during login'
       addDebugLog(`❌ Exception during login: ${errorMessage}`)
@@ -107,7 +86,6 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       setDebugInfo('')
       setIsLoading(false)
     }
-    // Don't set isLoading to false on success - let the redirect happen
   }
 
   return (
