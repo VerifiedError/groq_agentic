@@ -12,6 +12,16 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // Fix for Windows EISDIR error with catch-all routes
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.resolve.symlinks = false
+    }
+    // Disable webpack caching to avoid EISDIR errors on Windows
+    config.cache = false
+    return config
+  },
 };
 
 export default nextConfig;
