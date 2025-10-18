@@ -105,139 +105,166 @@ docker-start.bat  # Interactive: Build & start, Stop, View logs, Clean rebuild
 
 ## 📋 Project Overview
 
-**Agentic** - AI chat application with Next.js 15, Groq Compound AI, session management, cost tracking, and Sandpack IDE for code artifacts.
+**Agentic** - Simplified AI chat application with Next.js 15, Groq Compound AI, and built-in thinking/reasoning display.
 
 ### Tech Stack
 - **Framework**: Next.js 15.5.5 (App Router, Turbopack)
 - **UI**: React 19, TypeScript, Tailwind CSS, shadcn/ui
 - **Database**: PostgreSQL (Vercel/Production), SQLite (Docker/Local)
-- **Auth**: NextAuth.js v4 (credentials)
-- **AI**: Groq SDK (Compound models, Vision models)
-- **IDE**: Sandpack (in-browser code execution)
+- **Auth**: NextAuth.js v4 (credentials, bcrypt)
+- **AI**: Groq SDK (streaming responses with reasoning)
+- **Architecture**: Single-page chat interface (simplified from multi-session)
 
 ### Database Schema
 
 **4 Main Models:**
-1. **User** - Accounts (username/email, apiKey)
-2. **AgenticSession** - Chat sessions (model, cost tracking, token counts)
-3. **AgenticMessage** - Messages (role, content, toolCalls, attachments, reasoning)
+1. **User** - Accounts (username, passwordHash, role, isActive, lastLoginAt)
+2. **AgenticSession** - Chat sessions (model, cost tracking, token counts) *[Legacy, archived]*
+3. **AgenticMessage** - Messages (role, content, toolCalls, attachments, reasoning) *[Legacy, archived]*
 4. **GroqModel** - Available models (pricing, vision flag, context window)
 
-**Additional Models:**
-- **Artifact** - Code artifacts (React/HTML/JS, multi-file, Sandpack)
-- **ModelPreset** - Saved model configurations
+**Authentication:**
+- Bcrypt password hashing (12 rounds)
+- Rate limiting (5 attempts per 15 min, 30 min block)
+- Role-based access (admin/user)
+- Account status management (isActive flag)
 
 ### Application Structure
 
 ```
 app/
 ├── api/
-│   ├── agentic/route.ts              # Streaming chat (SSE)
-│   ├── playground/route.ts           # Playground chat (SSE)
+│   ├── chat/route.ts                 # Main streaming chat (SSE) *[CURRENT]*
 │   ├── models/route.ts               # Fetch models from DB
 │   ├── models/refresh/route.ts       # Sync models from Groq API
-│   ├── artifacts/[id]/chat/route.ts  # Artifact chat (structured edits)
 │   └── auth/[...nextauth]/route.ts   # NextAuth handler
-├── page.tsx                          # Main chat interface
-├── playground/page.tsx               # Playground (OpenRouter-style)
-└── login/page.tsx                    # Login (username/password)
+├── page.tsx                          # Root chat interface *[CURRENT - Simplified]*
+├── login/page.tsx                    # Login (username/password, Suspense-wrapped)
+└── playground/                       # *[ARCHIVED - See DO_NOT_DELETE/]*
 
 components/agentic/
-├── session-sidebar.tsx               # Session list
-├── session-header.tsx                # Title and stats
-├── new-session-button.tsx            # Model selection
-└── vision-message.tsx                # Formatted vision responses
+├── reasoning-display.tsx             # Thinking/reasoning UI *[ACTIVE]*
+└── reasoning-card.tsx                # Individual reasoning step *[ACTIVE]*
 
 components/playground/
-├── artifact-viewer.tsx               # Sandpack IDE modal
-├── artifact-chat.tsx                 # IDE chat interface
-├── artifact-changes-preview.tsx      # Diff preview
-└── workspace-ide.tsx                 # Autonomous builder
+├── model-settings-modal.tsx          # Temperature, maxTokens, topP settings
+└── *[Other components archived]*     # *[See DO_NOT_DELETE/]*
 
 lib/
-├── auth.ts                           # NextAuth config (bcrypt)
+├── auth.ts                           # NextAuth config (bcrypt, rate limiting)
+├── auth/password.ts                  # Password hashing utilities
+├── auth/login-rate-limit.ts          # Rate limiting system
 ├── groq.ts                           # Groq SDK + pricing
-├── artifact-protocol.ts              # Artifact creation/edit types
-├── artifact-parser.ts                # XML/JSON parser
-└── workspace-protocol.ts             # Command parser
+└── reasoning-parser.ts               # Extract <think> tags from AI responses
+
+DO_NOT_DELETE/                        # Archived legacy code
+├── app/page.tsx                      # Old multi-session chat interface
+├── components/agentic/               # Session management components (10 files)
+│   ├── session-sidebar.tsx
+│   ├── new-session-button.tsx
+│   ├── vision-message.tsx
+│   └── ...
+└── stores/agentic-session-store.ts   # Zustand session store
 ```
 
-### Responsive Design Components
+### Responsive Design (Mobile & Desktop)
 
-**Mobile-First Components** (`components/playground/`):
-- `mobile-sidebar.tsx` - Slide-out chat history drawer
-- `settings-bottom-sheet.tsx` - Drag-to-dismiss settings
-- `quick-actions-mobile.tsx` - Horizontal scrollable actions
-- `responsive-container.tsx` - Adaptive layout containers
+**Current Root Page** (`app/page.tsx`):
+- **Mobile**: Simplified single-column layout
+  - 16px font (prevents iOS zoom on input focus)
+  - 44px minimum touch targets (WCAG Level AAA)
+  - Safe area insets for iOS notch (`env(safe-area-inset-bottom)`)
+  - Touch-friendly scrolling (`-webkit-overflow-scrolling: touch`)
+  - Compact mobile header with settings button
+- **Desktop**: Centered chat container
+  - Larger header with "New Chat" button
+  - Spacious layout with better typography
+  - Hover states and transitions
 
-**Responsive Utilities** (`lib/breakpoints.ts`):
-- Breakpoint definitions (mobile/tablet/desktop/largeDesktop)
-- Touch target sizes (WCAG 2.1 compliant, 44px-56px)
-- Tailwind helper classes
-- Z-index layer system
-- Sidebar and container widths
+**Global Mobile CSS** (`app/globals.css`):
+- Safe area insets (`.safe-bottom`, `.safe-top`)
+- No horizontal overflow prevention
+- Better tap highlighting
+- Disabled double-tap zoom on buttons/links
+- Optimized prose sizing for mobile
 
-**Mobile Features**:
-- Swipe gestures (sidebar close, settings dismiss)
-- Touch-friendly UI (48px minimum touch targets)
-- Backdrop overlays with blur
-- Body scroll locking
-- Keyboard navigation (ESC to close)
-- Horizontal scrolling quick actions
-- Tabbed settings (Basic/Advanced)
-
-**Desktop Features**:
-- Hover tooltips
-- Larger containers (800px max)
-- Icon-only compact buttons
-- Persistent sidebar option
+**Archived Responsive Components** (`DO_NOT_DELETE/`):
+- `mobile-sidebar.tsx` - Slide-out chat drawer *[Legacy]*
+- `settings-bottom-sheet.tsx` - Drag-to-dismiss settings *[Legacy]*
+- `quick-actions-mobile.tsx` - Horizontal scrollable actions *[Legacy]*
+- `responsive-container.tsx` - Adaptive containers *[Legacy]*
+- `lib/breakpoints.ts` - Breakpoint utilities *[Legacy]*
 
 ---
 
-## 🔑 Key Features
+## 🔑 Key Features (Current Implementation)
 
-### 1. Streaming AI Responses (SSE)
-- User message saved immediately
+### 1. Streaming AI Responses with Reasoning
+- **Endpoint**: `/api/chat` (SSE streaming)
+- User message displayed immediately
 - Groq API streams via `groq.chat.completions.create({ stream: true })`
-- Chunks sent as `data: {content, done, usage}`
-- Assistant message saved with cost tracking on completion
+- **Think Tag Extraction**: AI reasoning extracted from `<think>` tags
+- **ReasoningDisplay**: Collapsible UI showing AI's thought process
+- Clean content shown (reasoning stripped from final message)
 
-### 2. Cost Tracking
-- Per-message and per-session tracking
-- Token counts: `prompt_tokens`, `completion_tokens`, `cached_tokens`
-- Pricing from `GROQ_PRICING` (lib/groq.ts) or database
-- Tool costs calculated from `executed_tools` array
+### 2. Authentication (Secure, Production-Ready)
+- **Username/password login** with bcrypt hashing (12 rounds)
+- **Rate limiting**: 5 failed attempts → 30-minute block
+- **Role-based access**: admin/user roles
+- **Account management**: isActive flag, lastLoginAt tracking
+- **JWT sessions**: httpOnly cookies, 7-day expiry
+- **Protected routes**: Middleware redirects to /login if unauthenticated
+- **Suspense-wrapped login**: Next.js 15 compliant (useSearchParams)
 
-### 3. Authentication (NextAuth.js)
-- Username/password login (bcrypt hashing)
-- Hardcoded credentials for single-user deployment
-- JWT sessions, protected routes
-- Auto-redirects to `/login` if unauthenticated
+### 3. Model Settings
+- **Temperature**: 0-2 range (creativity control)
+- **Max Tokens**: Output length limit
+- **Top P**: Nucleus sampling
+- **Model Selection**: Dropdown with all available Groq models
+- Settings persist in state (not localStorage)
 
-### 4. Model Management
-- **GET /api/models** - Fetch active models from DB
-- **POST /api/models/refresh** - Sync from Groq API
-- Vision models auto-detected (llava, vision, llama-4, llama-3.2-11b/90b)
+### 4. Model Management (Database-First)
+- **GET /api/models** - Fetch active models from PostgreSQL
+- **POST /api/models/refresh** - Sync from Groq API (authenticated)
+- Vision models auto-detected (pattern matching)
 - Fallback to hardcoded `GROQ_PRICING` if DB empty
 
-### 5. Vision Models
+### 5. Responsive Design
+- **Mobile-first**: 16px font, 44px touch targets, safe areas
+- **Desktop-optimized**: Larger header, spacious layout, hover states
+- **Global CSS utilities**: Safe area insets, touch scrolling, no zoom on focus
+
+---
+
+## 🗂️ Archived Features (DO_NOT_DELETE/)
+
+These features were removed in the major simplification (commit `eed2a80`):
+
+### ❌ Session Management (Removed)
+- Multiple chat sessions with history
+- Session sidebar with date grouping
+- Cost tracking per session
+- Session search and filtering
+- **Why removed**: Simplified to single-chat interface
+
+### ❌ Vision Models & Image Upload (Removed)
 - Image uploads (max 5 images, 4MB each)
 - Multi-modal messages: `[{type: 'text'}, {type: 'image_url'}]`
-- Custom `VisionMessage` component (color swatches, structured sections)
-- Validation: vision model required when uploading images
+- Custom `VisionMessage` component (color swatches)
+- **Why removed**: Focused on text-based chat
 
-### 6. Code Artifacts (Sandpack IDE)
-- **Auto-detection** from AI code blocks
-- **Templates**: React, 3D Game (Whisker World), 2D Platformer, Dashboard, Landing Page
-- **Features**: Multi-file, NPM dependencies, live preview, console
-- **Artifact Chat**: AI modifies code with XML edit commands (`<artifact-edit>`)
-- **Diff Preview**: Line-by-line changes before applying
+### ❌ Code Artifacts & Sandpack IDE (Removed)
+- Auto-detection from AI code blocks
+- Templates (React, 3D Game, Dashboard, etc.)
+- Artifact chat with XML edit commands
+- Diff preview and autonomous workspace builder
+- **Why removed**: Simplified to pure chat interface
 
-### 7. Autonomous Workspace Builder
-- Click "Interactive App" → AI builds full application
-- **Command Protocol**: `[THOUGHT]`, `[CREATE]`, `[EDIT]`, `[INSTALL]`, `[COMPLETE]`
-- **Operation Log**: Real-time sidebar showing AI actions
-- **System Prompt**: 600+ lines of structured instructions
+### ❌ Playground Route (Removed)
+- `/playground` - OpenRouter-style testing interface
+- **Why removed**: Consolidated to single root route `/`
+
+**Note**: All archived code is preserved in `DO_NOT_DELETE/` for reference and potential future restoration.
 
 ---
 
@@ -332,43 +359,33 @@ export const runtime = 'nodejs'
 - `llama-3.2-90b-vision` - High-performance ($0.90/$0.90)
 - `llava-v1.5-7b` - Free
 
-### Artifact Protocol
+### Reasoning Display (Think Tags)
 
-**Creation (XML)**:
-```xml
-<artifact>
-  <metadata>
-    <title>Counter App</title>
-    <type>react</type>
-  </metadata>
-  <files>
-    <file path="/App.tsx" language="tsx">
-      <![CDATA[
-      import React, { useState } from 'react';
-      export default function App() { /*...*/ }
-      ]]>
-    </file>
-  </files>
-</artifact>
+The current implementation extracts AI reasoning from `<think>` tags:
+
+**Example AI Response**:
+```
+<think>
+I should create a greeting function that accepts a name parameter.
+First, I'll validate the input to handle edge cases.
+Then return a personalized greeting.
+</think>
+
+Here's a greeting function:
+```js
+function greet(name) {
+  if (!name) return 'Hello, stranger!';
+  return `Hello, ${name}!`;
+}
+```
 ```
 
-**Modification (XML)**:
-```xml
-<artifact-edit>
-  <summary>Add reset button</summary>
-  <edits>
-    <edit>
-      <file path="/App.tsx" />
-      <action>insert</action>
-      <location type="after-line" line="10" />
-      <content><![CDATA[<button onClick={() => setCount(0)}>Reset</button>]]></content>
-    </edit>
-  </edits>
-</artifact-edit>
-```
+**UI Result**:
+- **Reasoning**: Collapsible "AI Reasoning" card with thought process
+- **Content**: Clean code example without `<think>` tags
 
-**Edit Actions**: `replace`, `insert`, `modify`, `delete`
-**Location Types**: `line`, `after-line`, `before-line`, `range`
+**Component**: `ReasoningDisplay` (`components/agentic/reasoning-display.tsx`)
+**Parser**: `extractThinkTags()` from `lib/reasoning-parser.ts`
 
 ---
 
@@ -379,16 +396,49 @@ export const runtime = 'nodejs'
 3. **Database sync issues**: After pulling schema changes → `npx prisma generate` → `npx prisma migrate dev`
 4. **Authentication loops**: Ensure `NEXTAUTH_URL` matches actual URL (include port 13380)
 5. **Next.js 15 params errors**: Must await params in dynamic routes
-6. **Prisma locked errors**: Stop dev server before running `npx prisma generate`
-7. **Vercel build failures**: Check for missing `export const dynamic = 'force-dynamic'`
-8. **Node force-kill**: NEVER run `taskkill /F /IM node.exe` (kills CLI)
+6. **Next.js 15 Suspense errors**: Wrap `useSearchParams()` in Suspense boundary
+7. **Prisma locked errors**: Stop dev server before running `npx prisma generate`
+8. **Vercel build failures**:
+   - Check for missing `export const dynamic = 'force-dynamic'`
+   - Ensure all imports exist (check for archived components)
+   - Verify Suspense boundaries for client hooks
+9. **Node force-kill**: NEVER run `taskkill /F /IM node.exe` (kills CLI)
 
 ---
 
-## 📖 Additional Documentation
+## 📖 Recent Major Changes
 
-- **Artifact Protocol**: `docs/ARTIFACT_PROTOCOL.md` (535 lines, complete spec)
-- **System Prompts**: `lib/artifact-system-prompts.ts`, `lib/workspace-system-prompt.ts`
+### Simplification (Commit `eed2a80`, Oct 2025)
+**What Changed**:
+- Removed `/playground` route → Consolidated to single root `/`
+- Archived session management system (10 components + store)
+- Removed vision models, image uploads, cost tracking
+- Removed Sandpack IDE, code artifacts, autonomous builder
+- Simplified to single-chat interface with reasoning display
+- **Lines removed**: ~2,000 lines of code
+- **Files archived**: 14 files moved to `DO_NOT_DELETE/`
+
+**Why**:
+- Focus on core chat functionality
+- Improve mobile responsiveness
+- Reduce complexity for single-user deployment
+- Preserve legacy code for potential future restoration
+
+### Authentication System (Issues #63, #64, Oct 2025)
+**Backend (Issue #63)**:
+- Bcrypt password hashing (12 rounds)
+- Rate limiting (5 attempts, 30-min block)
+- Role-based access (admin/user)
+- Account status management (isActive)
+- Last login tracking (lastLoginAt)
+
+**Frontend (Issue #64)**:
+- Professional login UI (gradient background, centered card)
+- React Hook Form + Zod validation
+- Password visibility toggle
+- Suspense-wrapped for Next.js 15
+- Responsive design (mobile + desktop)
+- Middleware-based route protection
 
 ---
 
