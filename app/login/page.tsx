@@ -1,101 +1,62 @@
 'use client'
-import { signIn } from 'next-auth/react'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+
+import { useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Sparkles } from 'lucide-react'
+import { LoginForm } from '@/components/auth/login-form'
 
 export default function LoginPage() {
+  const { data: session, status } = useSession()
   const router = useRouter()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/'
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-
-    try {
-      const result = await signIn('credentials', {
-        username,
-        password,
-        redirect: false
-      })
-
-      if (result?.ok) {
-        router.push('/')
-      } else {
-        setError('Invalid username or password')
-      }
-    } catch (err) {
-      setError('An error occurred during login')
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    // Redirect authenticated users
+    if (status === 'authenticated') {
+      router.push(redirectTo)
     }
+  }, [status, router, redirectTo])
+
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className="w-full max-w-md p-8 bg-white dark:bg-gray-800 rounded-lg shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-4">
+      {/* Mobile: Full screen card, Desktop: Centered card */}
+      <div className="w-full max-w-[450px] p-8 md:p-10 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-2xl shadow-2xl">
+        {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Agentic
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Sparkles className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+              Agentic
+            </h1>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">
             Sign in to continue
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all"
-              placeholder="Enter your username"
-              required
-              autoFocus
-            />
-          </div>
+        {/* Login Form */}
+        <LoginForm redirectTo={redirectTo} />
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white transition-all"
-              placeholder="Enter your password"
-              required
-            />
-          </div>
-
-          {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors duration-200 focus:ring-4 focus:ring-blue-300"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
+        {/* Footer */}
+        <div className="mt-8 text-center space-y-2">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Powered by Groq Compound AI
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            v1.0.0 © 2025
           </p>
         </div>
       </div>

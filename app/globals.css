@@ -230,3 +230,81 @@
     }
   }
 }
+
+/* Login Page Styles */
+@layer components {
+  /* Prevent zoom on input focus (mobile) */
+  @media (max-width: 1023px) {
+    input[type='text'],
+    input[type='password'],
+    input[type='email'],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
+  /* Touch-friendly inputs (mobile) */
+  @media (max-width: 767px) {
+    input[type='text'],
+    input[type='password'] {
+      min-height: 44px;
+    }
+
+    button {
+      min-height: 44px;
+    }
+  }
+
+  /* Login page animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .login-form {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  /* Focus states */
+  input:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Password toggle button */
+  .password-toggle {
+    transition: color 0.2s ease;
+  }
+
+  .password-toggle:hover {
+    color: hsl(var(--primary));
+  }
+
+  /* Login button gradient */
+  .login-button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transition: all 0.3s ease;
+  }
+
+  .login-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #5568d3 0%, #663a8c 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  .login-button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .login-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
