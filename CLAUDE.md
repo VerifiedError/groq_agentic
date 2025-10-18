@@ -46,7 +46,12 @@ This file provides guidance when working with code in this repository.
 
 **One-Click Deployment (Vercel CLI):**
 ```bash
-vercel-update.bat  # Commit, push, and deploy via Vercel CLI
+# Windows: Double-click one of these
+vercel-update.bat      # Simple wrapper (runs PowerShell script)
+vercel-update.ps1      # Full-featured PowerShell script (RECOMMENDED)
+
+# Or run from command line:
+powershell -ExecutionPolicy Bypass -File vercel-update.ps1
 ```
 
 **Prerequisites:**
@@ -67,6 +72,10 @@ vercel login           # Authenticate with Vercel (one-time)
 9. Displays final production URL
 
 **Fallback:** If Vercel CLI is not installed, falls back to GitHub auto-deploy
+
+**Files:**
+- `vercel-update.ps1` - Main PowerShell script (full-featured, color output)
+- `vercel-update.bat` - Simple wrapper that calls PowerShell script
 
 **Deployment Checklist:**
 - ✅ All API routes have `export const dynamic = 'force-dynamic'`
