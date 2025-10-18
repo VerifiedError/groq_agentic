@@ -25,13 +25,13 @@ interface SessionStore {
   currentSessionId: string | null
 
   // Session management
-  createSession: (model: string, name?: string) => Session
-  deleteSession: (sessionId: string) => void
+  createSession: (model: string, name?: string) => Promise<Session>
+  deleteSession: (sessionId: string) => Promise<void>
   setCurrentSession: (sessionId: string) => void
-  updateSessionName: (sessionId: string, name: string) => void
+  updateSessionName: (sessionId: string, name: string) => Promise<void>
 
   // Message management
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void
+  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => Promise<void>
   updateMessage: (messageId: string, updates: Partial<Message>) => void
   clearMessages: () => void
 
@@ -41,6 +41,7 @@ interface SessionStore {
 
   // Persistence
   loadSessions: (sessions: Session[]) => void
+  loadSessionsFromDB: () => Promise<void>
   updateSessionCost: (sessionId: string, cost: number, tokens: number) => void
 }
 
@@ -48,75 +49,180 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessions: [],
   currentSessionId: null,
 
-  createSession: (model: string, name?: string) => {
-    const newSession: Session = {
-      id: Date.now().toString(),
-      name: name || `Chat ${new Date().toLocaleString()}`,
-      model,
-      messages: [],
-      totalCost: 0,
-      totalTokens: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+  createSession: async (model: string, name?: string) => {
+    try {
+      // Create session in database
+      const response = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, name }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to create session')
+      }
+
+      const { session } = await response.json()
+
+      // Add to local state
+      set((state) => ({
+        sessions: [session, ...state.sessions],
+        currentSessionId: session.id,
+      }))
+
+      return session
+    } catch (error) {
+      console.error('Failed to create session:', error)
+      // Fallback to client-only session
+      const newSession: Session = {
+        id: Date.now().toString(),
+        name: name || `Chat ${new Date().toLocaleString()}`,
+        model,
+        messages: [],
+        totalCost: 0,
+        totalTokens: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      set((state) => ({
+        sessions: [newSession, ...state.sessions],
+        currentSessionId: newSession.id,
+      }))
+
+      return newSession
     }
-
-    set((state) => ({
-      sessions: [newSession, ...state.sessions],
-      currentSessionId: newSession.id,
-    }))
-
-    return newSession
   },
 
-  deleteSession: (sessionId: string) => {
-    set((state) => {
-      const newSessions = state.sessions.filter((s) => s.id !== sessionId)
-      const newCurrentId = state.currentSessionId === sessionId
-        ? (newSessions[0]?.id || null)
-        : state.currentSessionId
+  deleteSession: async (sessionId: string) => {
+    try {
+      // Delete from database
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'DELETE',
+      })
 
-      return {
-        sessions: newSessions,
-        currentSessionId: newCurrentId,
+      if (!response.ok) {
+        throw new Error('Failed to delete session')
       }
-    })
+
+      // Remove from local state
+      set((state) => {
+        const newSessions = state.sessions.filter((s) => s.id !== sessionId)
+        const newCurrentId = state.currentSessionId === sessionId
+          ? (newSessions[0]?.id || null)
+          : state.currentSessionId
+
+        return {
+          sessions: newSessions,
+          currentSessionId: newCurrentId,
+        }
+      })
+    } catch (error) {
+      console.error('Failed to delete session:', error)
+      // Still remove from local state
+      set((state) => {
+        const newSessions = state.sessions.filter((s) => s.id !== sessionId)
+        const newCurrentId = state.currentSessionId === sessionId
+          ? (newSessions[0]?.id || null)
+          : state.currentSessionId
+
+        return {
+          sessions: newSessions,
+          currentSessionId: newCurrentId,
+        }
+      })
+    }
   },
 
   setCurrentSession: (sessionId: string) => {
     set({ currentSessionId: sessionId })
   },
 
-  updateSessionName: (sessionId: string, name: string) => {
-    set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.id === sessionId
-          ? { ...s, name, updatedAt: new Date() }
-          : s
-      ),
-    }))
+  updateSessionName: async (sessionId: string, name: string) => {
+    try {
+      // Update in database
+      const response = await fetch(`/api/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update session name')
+      }
+
+      // Update local state
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId
+            ? { ...s, name, updatedAt: new Date() }
+            : s
+        ),
+      }))
+    } catch (error) {
+      console.error('Failed to update session name:', error)
+      // Still update local state
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === sessionId
+            ? { ...s, name, updatedAt: new Date() }
+            : s
+        ),
+      }))
+    }
   },
 
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => {
+  addMessage: async (message: Omit<Message, 'id' | 'timestamp'>) => {
     const { currentSessionId } = get()
     if (!currentSessionId) return
 
-    const newMessage: Message = {
-      ...message,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-    }
+    try {
+      // Add message to database
+      const response = await fetch(`/api/sessions/${currentSessionId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message),
+      })
 
-    set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.id === currentSessionId
-          ? {
-              ...s,
-              messages: [...s.messages, newMessage],
-              updatedAt: new Date(),
-            }
-          : s
-      ),
-    }))
+      if (!response.ok) {
+        throw new Error('Failed to add message')
+      }
+
+      const { message: savedMessage } = await response.json()
+
+      // Add to local state
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === currentSessionId
+            ? {
+                ...s,
+                messages: [...s.messages, savedMessage],
+                updatedAt: new Date(),
+              }
+            : s
+        ),
+      }))
+    } catch (error) {
+      console.error('Failed to add message:', error)
+      // Fallback to client-only message
+      const newMessage: Message = {
+        ...message,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+      }
+
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === currentSessionId
+            ? {
+                ...s,
+                messages: [...s.messages, newMessage],
+                updatedAt: new Date(),
+              }
+            : s
+        ),
+      }))
+    }
   },
 
   updateMessage: (messageId: string, updates: Partial<Message>) => {
@@ -166,6 +272,37 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sessions,
       currentSessionId: sessions[0]?.id || null,
     })
+  },
+
+  loadSessionsFromDB: async () => {
+    try {
+      const response = await fetch('/api/sessions')
+
+      if (!response.ok) {
+        throw new Error('Failed to load sessions')
+      }
+
+      const { sessions } = await response.json()
+
+      // Convert date strings to Date objects
+      const transformedSessions = sessions.map((s: any) => ({
+        ...s,
+        createdAt: new Date(s.createdAt),
+        updatedAt: new Date(s.updatedAt),
+        messages: s.messages.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp),
+        })),
+      }))
+
+      set({
+        sessions: transformedSessions,
+        currentSessionId: transformedSessions[0]?.id || null,
+      })
+    } catch (error) {
+      console.error('Failed to load sessions from DB:', error)
+      // Keep empty sessions array
+    }
   },
 
   updateSessionCost: (sessionId: string, cost: number, tokens: number) => {

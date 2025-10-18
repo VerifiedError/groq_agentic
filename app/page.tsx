@@ -24,6 +24,7 @@ import { SessionDrawer } from '@/components/agentic/session-drawer'
 import { useSessionStore } from '@/stores/agentic-session-store'
 import { isAdmin } from '@/lib/admin-utils'
 import { APP_VERSION, APP_NAME } from '@/lib/version'
+import { generateSessionName, isDefaultSessionName } from '@/lib/session-name-generator'
 
 interface Model {
   id: string
@@ -61,6 +62,8 @@ export default function HomePage() {
     getCurrentSession,
     addMessage,
     createSession,
+    loadSessionsFromDB,
+    updateSessionName,
     sessions
   } = useSessionStore()
 
@@ -70,7 +73,14 @@ export default function HomePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Initialize first session if none exist
+  // Load sessions from database on mount
+  useEffect(() => {
+    if (status === 'authenticated') {
+      loadSessionsFromDB()
+    }
+  }, [status, loadSessionsFromDB])
+
+  // Initialize first session if none exist after loading
   useEffect(() => {
     if (status === 'authenticated' && sessions.length === 0) {
       createSession(selectedModel, 'New Chat')
@@ -116,10 +126,18 @@ export default function HomePage() {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
+    const userInput = input.trim()
+
+    // Auto-generate session name from first message
+    if (currentSession && messages.length === 0 && isDefaultSessionName(currentSession.name)) {
+      const generatedName = generateSessionName(userInput)
+      updateSessionName(currentSession.id, generatedName)
+    }
+
     // Add user message to session store
-    addMessage({
+    await addMessage({
       role: 'user',
-      content: input.trim(),
+      content: userInput,
     })
 
     setInput('')
