@@ -59,7 +59,13 @@ export default function HomePage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Redirect if not authenticated
+  // IMPORTANT: Wait for session to fully load before checking
+  // This prevents race condition where we redirect before session cookie is read
   useEffect(() => {
+    // Don't do anything while session is still loading
+    if (status === 'loading') return
+
+    // Only redirect if we're definitively unauthenticated after loading completes
     if (status === 'unauthenticated') {
       router.push('/login')
     }
