@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils'
 
 interface SessionSidebarProps {
   className?: string
+  onClose?: () => void
 }
 
-export function SessionSidebar({ className }: SessionSidebarProps) {
+export function SessionSidebar({ className, onClose }: SessionSidebarProps) {
   const router = useRouter()
   const pathname = usePathname()
 
@@ -189,7 +190,10 @@ export function SessionSidebar({ className }: SessionSidebarProps) {
                 key={session.id}
                 session={session}
                 isActive={session.id === activeSessionId}
-                onClick={() => setActiveSession(session.id)}
+                onClick={() => {
+                  setActiveSession(session.id)
+                  onClose?.() // Close sidebar on mobile after selecting session
+                }}
               />
             ))}
           </div>

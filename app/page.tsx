@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Bot, User, Brain, Paperclip, X, Image as ImageIcon } from 'lucide-react'
+import { Send, Loader2, Bot, User, Brain, Paperclip, X, Image as ImageIcon, Menu } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -35,6 +35,7 @@ export default function AgenticPage() {
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingReasoning, setStreamingReasoning] = useState('') // Track reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
   const [attachments, setAttachments] = useState<Array<{ data: string; name: string; type: string }>>([])
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -266,27 +267,57 @@ export default function AgenticPage() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Session Sidebar */}
-      <SessionSidebar className="w-80 flex-shrink-0" />
+      {/* Mobile Backdrop */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Session Sidebar - Hidden on mobile, shown when hamburger clicked */}
+      <SessionSidebar
+        className={cn(
+          "w-80 flex-shrink-0 fixed lg:relative z-50 h-full transition-transform duration-300 lg:translate-x-0",
+          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+        onClose={() => setIsMobileSidebarOpen(false)}
+      />
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Session Header */}
-        <SessionHeader />
+      <div className="flex-1 flex flex-col overflow-hidden w-full">
+        {/* Mobile Header with Hamburger */}
+        <div className="lg:hidden border-b bg-card/50 backdrop-blur-sm">
+          <div className="flex items-center gap-3 px-4 py-3">
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="text-lg font-semibold">Agentic Chat</h1>
+          </div>
+        </div>
+
+        {/* Session Header - Desktop only */}
+        <div className="hidden lg:block">
+          <SessionHeader />
+        </div>
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto bg-background">
-          <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="max-w-4xl mx-auto px-3 md:px-4 py-4 md:py-6">
             {messages.length === 0 && !streamingContent ? (
               // Empty State
-              <div className="flex flex-col items-center justify-center h-full text-center py-20">
-                <div className="p-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 mb-6">
-                  <Brain className="h-12 w-12 text-white" />
+              <div className="flex flex-col items-center justify-center h-full text-center py-12 md:py-20 px-4">
+                <div className="p-3 md:p-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 mb-4 md:mb-6">
+                  <Brain className="h-10 md:h-12 w-10 md:w-12 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">
+                <h2 className="text-xl md:text-2xl font-bold mb-2">
                   {activeSessionId ? 'Start a Conversation' : 'No Session Selected'}
                 </h2>
-                <p className="text-muted-foreground max-w-md">
+                <p className="text-sm md:text-base text-muted-foreground max-w-md">
                   {activeSessionId
                     ? 'Ask me anything and I will use web search, code execution, and browser automation to help you.'
                     : 'Create or select a session to start chatting with the agentic AI.'}
@@ -294,24 +325,24 @@ export default function AgenticPage() {
               </div>
             ) : (
               // Messages List
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 {messages.map((message, index) => (
                   <div
                     key={message.id || index}
-                    className={`flex gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex gap-2 md:gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {/* Assistant Avatar */}
                     {message.role === 'assistant' && (
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-                        <Bot className="h-5 w-5 text-white" />
+                      <div className="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                        <Bot className="h-4 w-4 md:h-5 md:w-5 text-white" />
                       </div>
                     )}
 
                     {/* Message Content */}
-                    <div className="flex flex-col gap-2 max-w-[80%]">
+                    <div className="flex flex-col gap-1.5 md:gap-2 max-w-[85%] md:max-w-[80%]">
                       <div
                         className={cn(
-                          'rounded-lg p-4',
+                          'rounded-lg p-3 md:p-4 text-sm md:text-base',
                           message.role === 'user'
                             ? 'bg-primary text-primary-foreground ml-auto'
                             : 'bg-card border'
@@ -354,8 +385,8 @@ export default function AgenticPage() {
 
                     {/* User Avatar */}
                     {message.role === 'user' && (
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary-foreground" />
+                      <div className="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full bg-primary flex items-center justify-center">
+                        <User className="h-4 w-4 md:h-5 md:w-5 text-primary-foreground" />
                       </div>
                     )}
                   </div>
@@ -363,11 +394,11 @@ export default function AgenticPage() {
 
                 {/* Streaming Message */}
                 {streamingContent && (
-                  <div className="flex gap-4 justify-start">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-white" />
+                  <div className="flex gap-2 md:gap-4 justify-start">
+                    <div className="flex-shrink-0 w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+                      <Bot className="h-4 w-4 md:h-5 md:w-5 text-white" />
                     </div>
-                    <div className="max-w-[80%] rounded-lg p-4 bg-card border">
+                    <div className="max-w-[85%] md:max-w-[80%] rounded-lg p-3 md:p-4 text-sm md:text-base bg-card border">
                       {/* Thinking/Reasoning Display (streaming) */}
                       {streamingReasoning && (
                         <ReasoningDisplay
@@ -407,22 +438,22 @@ export default function AgenticPage() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t bg-card/50 backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto px-4 py-4">
+        <div className="border-t bg-card/50 backdrop-blur-sm safe-bottom">
+          <div className="max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
             {/* Image Preview Area */}
             {attachments.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              <div className="mb-2 md:mb-3 flex flex-wrap gap-2">
                 {attachments.map((att, idx) => (
                   <div key={idx} className="relative group">
                     <img
                       src={att.data}
                       alt={att.name}
-                      className="h-20 w-20 object-cover rounded-lg border"
+                      className="h-16 w-16 md:h-20 md:w-20 object-cover rounded-lg border"
                     />
                     <button
                       type="button"
                       onClick={() => handleRemoveAttachment(idx)}
-                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -434,14 +465,14 @@ export default function AgenticPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="flex gap-3">
-              <div className="flex-1 flex items-end gap-2">
+            <form onSubmit={handleSubmit} className="flex gap-2 md:gap-3">
+              <div className="flex-1 flex items-end gap-1.5 md:gap-2">
                 {/* File upload button */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isLoading || !activeSessionId || attachments.length >= 5}
-                  className="p-3 rounded-lg border bg-background hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="p-2.5 md:p-3 rounded-lg border bg-background hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                   title="Upload images (max 5)"
                 >
                   <Paperclip className="h-5 w-5" />
@@ -466,7 +497,7 @@ export default function AgenticPage() {
                     }
                   }}
                   placeholder={activeSessionId ? 'Ask anything...' : 'Create or select a session to start...'}
-                  className="flex-1 resize-none rounded-lg border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[52px] max-h-[200px]"
+                  className="flex-1 resize-none rounded-lg border bg-background px-3 md:px-4 py-2.5 md:py-3 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px] md:min-h-[52px] max-h-[160px] md:max-h-[200px]"
                   rows={1}
                   disabled={isLoading || !activeSessionId}
                 />
@@ -474,7 +505,7 @@ export default function AgenticPage() {
               <button
                 type="submit"
                 disabled={!input.trim() || isLoading || !activeSessionId}
-                className="px-6 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end"
+                className="px-4 md:px-6 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end min-h-[44px] flex-shrink-0"
               >
                 {isLoading ? (
                   <Loader2 className="h-5 w-5 animate-spin" />

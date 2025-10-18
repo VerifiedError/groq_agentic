@@ -308,3 +308,72 @@
     cursor: not-allowed;
   }
 }
+
+/* Mobile Optimizations */
+@layer components {
+  /* Safe area insets for iOS notch/Dynamic Island */
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+
+  .safe-top {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+
+  /* Prevent horizontal overflow on mobile */
+  @media (max-width: 1023px) {
+    body {
+      overflow-x: hidden;
+    }
+
+    /* Touch-friendly scrolling */
+    .overflow-y-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Prevent text size adjustment on orientation change */
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    /* Better tap highlighting */
+    * {
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    }
+
+    /* Disable double-tap zoom */
+    button,
+    a {
+      touch-action: manipulation;
+    }
+  }
+
+  /* Mobile prose adjustments */
+  @media (max-width: 767px) {
+    .prose {
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .prose h1 {
+      font-size: 1.5rem;
+    }
+
+    .prose h2 {
+      font-size: 1.25rem;
+    }
+
+    .prose h3 {
+      font-size: 1.125rem;
+    }
+
+    .prose code {
+      font-size: 0.8125rem;
+    }
+
+    .prose pre {
+      font-size: 0.75rem;
+      padding: 0.75rem;
+    }
+  }
+}
