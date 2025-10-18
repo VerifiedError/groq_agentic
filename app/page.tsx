@@ -20,6 +20,8 @@ import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
 import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 import { AdminDashboard } from '@/components/admin/admin-dashboard'
+import { SessionDrawer } from '@/components/agentic/session-drawer'
+import { useSessionStore } from '@/stores/agentic-session-store'
 import { isAdmin } from '@/lib/admin-utils'
 import { APP_VERSION, APP_NAME } from '@/lib/version'
 
@@ -39,12 +41,11 @@ export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingReasoning, setStreamingReasoning] = useState('')
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [showSessionDrawer, setShowSessionDrawer] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile')
@@ -55,8 +56,26 @@ export default function HomePage() {
     webSearch: false,
   })
 
+  // Session store
+  const {
+    getCurrentSession,
+    addMessage,
+    createSession,
+    sessions
+  } = useSessionStore()
+
+  const currentSession = getCurrentSession()
+  const messages = currentSession?.messages || []
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Initialize first session if none exist
+  useEffect(() => {
+    if (status === 'authenticated' && sessions.length === 0) {
+      createSession(selectedModel, 'New Chat')
+    }
+  }, [status, sessions.length, selectedModel, createSession])
 
   // Redirect if not authenticated
   // IMPORTANT: Wait for session to fully load before checking
@@ -85,9 +104,11 @@ export default function HomePage() {
   }, [input])
 
   const handleNewChat = () => {
-    if (messages.length > 0 && confirm('Start a new chat? Current conversation will be cleared.')) {
-      setMessages([])
+    if (messages.length > 0 && confirm('Start a new chat? This will create a new session.')) {
+      createSession(selectedModel, 'New Chat')
       setInput('')
+    } else if (messages.length === 0) {
+      createSession(selectedModel, 'New Chat')
     }
   }
 
@@ -95,13 +116,12 @@ export default function HomePage() {
     e.preventDefault()
     if (!input.trim() || isLoading) return
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
+    // Add user message to session store
+    addMessage({
       role: 'user',
       content: input.trim(),
-    }
+    })
 
-    setMessages((prev) => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
     setStreamingContent('')
@@ -159,13 +179,12 @@ export default function HomePage() {
 
             if (data.done) {
               const { cleanContent, extractedReasoning } = extractThinkTags(fullContent)
-              const assistantMessage: Message = {
-                id: Date.now().toString(),
+              // Add assistant message to session store
+              addMessage({
                 role: 'assistant',
                 content: cleanContent,
                 reasoning: extractedReasoning,
-              }
-              setMessages((prev) => [...prev, assistantMessage])
+              })
               setStreamingContent('')
               setStreamingReasoning('')
             }
@@ -196,6 +215,13 @@ export default function HomePage() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 border-b bg-card/50 backdrop-blur-sm safe-top">
         <div className="flex items-center justify-between px-3 py-3">
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSessionDrawer(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Sessions"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <h1 className="text-lg font-semibold">{APP_NAME}</h1>
             <span className="text-xs text-muted-foreground">{APP_VERSION}</span>
           </div>
@@ -231,6 +257,13 @@ export default function HomePage() {
       <div className="hidden lg:block fixed top-0 left-0 right-0 z-30 border-b bg-card/50 backdrop-blur-sm">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowSessionDrawer(true)}
+              className="px-3 py-2 border rounded-lg hover:bg-accent transition-colors flex items-center gap-2"
+            >
+              <Menu className="h-4 w-4" />
+              Sessions
+            </button>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">{APP_NAME}</h1>
               <span className="text-sm text-muted-foreground">{APP_VERSION}</span>
@@ -397,6 +430,12 @@ export default function HomePage() {
         onModelChange={setSelectedModel}
         settings={settings}
         onSettingsChange={setSettings}
+      />
+
+      {/* Session Drawer */}
+      <SessionDrawer
+        isOpen={showSessionDrawer}
+        onClose={() => setShowSessionDrawer(false)}
       />
 
       {/* Admin Dashboard */}

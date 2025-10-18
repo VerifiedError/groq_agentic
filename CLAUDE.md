@@ -154,15 +154,16 @@ docker-start.bat  # Interactive: Build & start, Stop, View logs, Clean rebuild
 - **Database**: PostgreSQL (Vercel/Production), SQLite (Docker/Local)
 - **Auth**: NextAuth.js v4 (credentials, bcrypt, self-registration)
 - **AI**: Groq SDK (streaming responses with reasoning)
-- **Architecture**: Single-page chat interface (simplified from multi-session)
-- **Design**: Clean white background with black borders (high-contrast)
+- **State**: Zustand (multi-session management) *[RESTORING]*
+- **Architecture**: Multi-session chat interface with PWA support *[IN PROGRESS - Issue #70]*
+- **Design**: Clean white background with black borders (high-contrast), mobile-first PWA
 
 ### Database Schema
 
 **4 Main Models:**
 1. **User** - Accounts (username, passwordHash, role, isActive, lastLoginAt)
-2. **AgenticSession** - Chat sessions (model, cost tracking, token counts) *[Legacy, archived]*
-3. **AgenticMessage** - Messages (role, content, toolCalls, attachments, reasoning) *[Legacy, archived]*
+2. **AgenticSession** - Chat sessions (model, cost tracking, token counts) *[BEING RESTORED - Issue #70]*
+3. **AgenticMessage** - Messages (role, content, toolCalls, attachments, reasoning) *[BEING RESTORED - Issue #70]*
 4. **GroqModel** - Available models (pricing, vision flag, context window)
 
 **Authentication:**
@@ -194,7 +195,8 @@ app/
 components/
 ├── agentic/
 │   ├── reasoning-display.tsx             # Thinking/reasoning UI
-│   └── reasoning-card.tsx                # Individual reasoning step
+│   ├── reasoning-card.tsx                # Individual reasoning step
+│   └── session-drawer.tsx                # Mobile session list drawer *[NEW - Issue #70 Phase 1]*
 ├── auth/
 │   ├── login-form.tsx                    # Login form (black borders) *[UPDATED]*
 │   ├── register-form.tsx                 # Registration form *[NEW]*
@@ -216,6 +218,9 @@ lib/
 ├── admin-middleware.ts                   # Server-side admin checks
 ├── groq.ts                               # Groq SDK + pricing
 └── reasoning-parser.ts                   # Extract <think> tags
+
+stores/
+└── agentic-session-store.ts              # Zustand multi-session store *[NEW - Issue #70 Phase 1]*
 ```
 
 ### Responsive Design (Mobile & Desktop)
@@ -289,7 +294,46 @@ lib/
 - Vision models auto-detected (pattern matching)
 - Fallback to hardcoded `GROQ_PRICING` if DB empty
 
-### 5. UI Design System (Clean White/Black Theme)
+### 5. Multi-Session Management *[IN PROGRESS - Issue #70 Phase 1]*
+- **Zustand Store** (`stores/agentic-session-store.ts`)
+  - Session CRUD operations (create, delete, update, switch)
+  - Message management (add, update, clear)
+  - Cost tracking (totalCost, totalTokens per session)
+  - Session grouping by date (Today, Yesterday, Last 7 Days, Older)
+- **Session Drawer** (`components/agentic/session-drawer.tsx`)
+  - Mobile-optimized slide-out drawer (85% width)
+  - Desktop: Accessible via "Sessions" button
+  - Fixed height layout with internal scroll only
+  - Session list with delete confirmation
+  - Cost summary in footer
+- **Integration** (`app/page.tsx`)
+  - Menu button in mobile/desktop headers
+  - Messages connected to current session
+  - Auto-create first session on authentication
+  - New Chat button creates new session
+
+**Status**: ✅ Phase 1 Complete - Session drawer integrated
+**Next**: API routes for database persistence (Phase 1 cont.)
+**Tracking**: GitHub Issue #70
+
+### 6. Progressive Web App (PWA) Support
+- **Manifest** (`public/manifest.json`)
+  - Display: standalone (no browser UI)
+  - Orientation: portrait
+  - Theme: black (#000000)
+  - Icons: 192x192 and 512x512 (maskable)
+- **Mobile-First Layout**
+  - Zero body scrolling (`h-[100dvh]`, `overflow: hidden`)
+  - Fixed headers and input areas
+  - Internal scroll for messages and settings only
+  - Safe area insets for iOS notch
+  - No pull-to-refresh or overscroll bounce
+- **Install to Home Screen**
+  - Add to Home Screen on iOS/Android
+  - Standalone app mode
+  - Perfect for mobile usage
+
+### 7. UI Design System (Clean White/Black Theme)
 - **Background**: White (#FFFFFF) or light gray (#F9FAFB)
 - **Borders**: Black (#000000), 2px solid
 - **Input Fields**:
@@ -340,18 +384,29 @@ lib/
 
 These features were removed in the major simplification (commit `eed2a80`) and cleaned up from the repository (commit for Issue #69):
 
-### ❌ Session Management (Removed)
+### ✅ Session Management (BEING RESTORED - Issue #70 Phase 1 ✅ COMPLETE)
 - Multiple chat sessions with history
-- Session sidebar with date grouping
-- Cost tracking per session
-- Session search and filtering
-- **Why removed**: Simplified to single-chat interface
+- Session drawer with date grouping (Today, Yesterday, Last 7 Days, Older)
+- Cost tracking per session (totalCost, totalTokens)
+- Session CRUD operations (create, delete, switch)
+- **Status**: ✅ Phase 1 Complete
+  - ✅ Zustand store created (`stores/agentic-session-store.ts`)
+  - ✅ Session drawer component created (`components/agentic/session-drawer.tsx`)
+  - ✅ Integrated into home page (`app/page.tsx`)
+  - ✅ Menu button in mobile/desktop headers
+  - ⏳ TODO: API routes for database persistence
+  - ⏳ TODO: Auto-generate session names from first message
+- **Tracking**: GitHub Issue #70
 
-### ❌ Vision Models & Image Upload (Removed)
+### ⏳ Vision Models & Image Upload (TO BE RESTORED - Issue #70 Phase 2)
 - Image uploads (max 5 images, 4MB each)
 - Multi-modal messages: `[{type: 'text'}, {type: 'image_url'}]`
 - Custom `VisionMessage` component (color swatches)
-- **Why removed**: Focused on text-based chat
+- Camera access on mobile + file picker
+- Drag & drop on desktop
+- Image preview thumbnails, lightbox view
+- **Status**: Pending Phase 2
+- **Tracking**: GitHub Issue #70
 
 ### ❌ Code Artifacts & Sandpack IDE (Removed)
 - Auto-detection from AI code blocks
@@ -692,6 +747,101 @@ robocopy d:\agentic c:\agentic /E /MOVE
 ---
 
 ## 📖 Recent Major Changes
+
+### Multi-Session Restoration - Phase 1 Complete (Issue #70, Jan 2025)
+**What Changed**:
+- Restored multi-session chat functionality with mobile-first PWA design
+- Created Zustand store for session management (client-side state)
+- Built mobile-optimized session drawer component
+- Integrated session system into home page
+
+**Files Created**:
+- `stores/agentic-session-store.ts` - Zustand store for sessions/messages
+  - Session CRUD operations (create, delete, update, switch)
+  - Message management (add, update, clear)
+  - Cost tracking (totalCost, totalTokens per session)
+  - Date grouping (Today, Yesterday, Last 7 Days, Older)
+- `components/agentic/session-drawer.tsx` - Mobile session drawer
+  - Fixed height layout (h-[100dvh]) with internal scroll
+  - Session list with delete confirmation
+  - Cost summary in footer
+  - 85% width on mobile, accessible on desktop
+
+**Files Modified**:
+- `app/page.tsx` - Integrated session store
+  - Added Menu button to mobile/desktop headers
+  - Messages now connected to current session
+  - Auto-create first session on authentication
+  - New Chat button creates new session
+- `package.json` / `package-lock.json` - Added `date-fns` dependency
+
+**Dependencies Added**:
+- `date-fns` - Date formatting and grouping
+
+**Status**: ✅ Phase 1 Complete (client-side integration)
+**Next Steps**:
+- API routes for database persistence (`/api/sessions`)
+- Auto-generate session names from first message
+- Phase 2: Vision models & image upload
+- Phase 3: Advanced settings expansion
+
+**Tracking**: GitHub Issue #70
+
+### PWA Support & Mobile-First Design (Jan 2025)
+**What Changed**:
+- Added complete Progressive Web App (PWA) support
+- Zero-scroll mobile experience for home screen usage
+- Fixed viewport heights across all pages
+
+**Files Created**:
+- `public/manifest.json` - PWA manifest
+  - Display: standalone (no browser UI)
+  - Orientation: portrait
+  - Theme: black (#000000)
+  - Icons: 192x192 and 512x512 (maskable)
+
+**Files Modified**:
+- `app/globals.css` - Mobile-first PWA styles
+  - `h-[100dvh]` for dynamic viewport height
+  - `position: fixed`, `overflow: hidden` on html/body
+  - `overscroll-behavior-y: none` (no pull-to-refresh)
+  - Safe area insets for iOS notch
+- `app/layout.tsx` - PWA metadata
+  - Added manifest link, apple-mobile-web-app-capable
+  - Viewport config: viewport-fit=cover, no user scaling
+- `app/login/page.tsx` - Fixed height login (no scrolling)
+- `app/page.tsx` - Fixed viewport height
+- `components/playground/model-settings-modal.tsx` - Fixed height modal with internal scroll
+
+**Result**:
+- ✅ Zero body scrolling on any page
+- ✅ Login fits in viewport without scrolling
+- ✅ Home page messages scroll internally only
+- ✅ Settings modal fits in viewport (internal scroll only)
+- ✅ PWA installable to home screen
+- ✅ Standalone app mode (no browser UI)
+
+### Login Authentication System Fixed (12 iterations, Jan 2025)
+**What Changed**:
+- Fixed login redirect loop issue
+- Root cause: Custom cookie configuration interfering with NextAuth
+
+**Key Fix (Login Fix v12)**:
+- Removed custom `cookies` config from `lib/auth.ts`
+- Let NextAuth handle cookie naming automatically based on:
+  - `NEXTAUTH_URL` (determines cookie domain)
+  - `NODE_ENV` (determines secure flag and cookie prefix)
+  - Deployment environment (Vercel, localhost, etc.)
+
+**Cookie Naming**:
+- Production (secure: true): `__Secure-next-auth.session-token`
+- Development (secure: false): `next-auth.session-token`
+
+**Environment Variables**:
+- Added `NEXTAUTH_URL` to all Vercel environments (production, preview, development)
+- Production: `https://agentic-amber.vercel.app` (custom domain)
+
+**Result**: ✅ Login works perfectly on production
 
 ### Registration System & Rebranding (Commit `d6245af`, Oct 2025)
 **What Changed**:
