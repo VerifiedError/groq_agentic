@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { X, Power, Lightbulb, Check, Loader2 } from 'lucide-react'
 import { PresetDropdown } from './preset-dropdown'
+import { encode } from 'gpt-tokenizer'
 
 interface Model {
   id: string
@@ -19,6 +20,7 @@ interface ModelSettingsModalProps {
     maxTokens: number
     topP: number
     chatMemory: number
+    formattingRules: string
     systemPrompt: string
     label: string
   }
@@ -56,6 +58,17 @@ export function ModelSettingsModal({
   }, [settings])
 
   const currentModel = models.find(m => m.id === modelId)
+
+  // Calculate token count for formatting rules
+  const formattingRulesTokens = useMemo(() => {
+    if (!localSettings.formattingRules?.trim()) return 0
+    try {
+      return encode(localSettings.formattingRules).length
+    } catch {
+      // Fallback: approximate 4 chars = 1 token
+      return Math.ceil(localSettings.formattingRules.length / 4)
+    }
+  }, [localSettings.formattingRules])
 
   // Debounced auto-save function (stable reference)
   const debouncedSave = useCallback(() => {
@@ -293,6 +306,46 @@ export function ModelSettingsModal({
                 </div>
               </div>
             </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+            {/* Formatting Rules Section */}
+            <details className="group border rounded-lg overflow-hidden">
+              <summary className="flex items-center justify-between cursor-pointer px-4 py-3 bg-accent/30 hover:bg-accent/50 transition-colors">
+                <div>
+                  <span className="text-sm font-semibold text-foreground">Formatting Rules</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Define output formatting guidelines • ~{formattingRulesTokens} tokens
+                  </p>
+                </div>
+                <svg
+                  className="h-5 w-5 transition-transform group-open:rotate-90 text-muted-foreground"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </summary>
+              <div className="p-4 space-y-3 bg-accent/10">
+                <textarea
+                  value={localSettings.formattingRules}
+                  onChange={(e) => setLocalSettings({ ...localSettings, formattingRules: e.target.value })}
+                  placeholder="Example:&#10;- Always format code blocks with syntax highlighting&#10;- Use bullet points for lists&#10;- Keep responses under 500 words&#10;- Include examples when explaining concepts"
+                  rows={6}
+                  className="w-full px-4 py-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all font-mono"
+                />
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground">
+                    These rules will be prepended to the system prompt
+                  </span>
+                  <span className="font-medium text-primary">
+                    ~{formattingRulesTokens} tokens
+                  </span>
+                </div>
+              </div>
+            </details>
 
             {/* Divider */}
             <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />

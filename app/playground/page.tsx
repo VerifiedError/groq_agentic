@@ -374,6 +374,7 @@ export default function PlaygroundChatPage() {
     maxTokens: 1024,
     topP: 1,
     chatMemory: 8,
+    formattingRules: '',
     systemPrompt: '',
     label: models.find(m => m.id === modelId)?.displayName || modelId
   })
@@ -694,10 +695,15 @@ export default function PlaygroundChatPage() {
         try {
           // Get model-specific settings
           const settings = getModelSettings(modelId)
-          const { temperature: modelTemp, maxTokens: modelMaxTokens, topP: modelTopP, chatMemory } = settings
+          const { temperature: modelTemp, maxTokens: modelMaxTokens, topP: modelTopP, chatMemory, formattingRules } = settings
 
           // Construct messages array with system prompts
           const apiMessages: any[] = []
+
+          // Add formatting rules first (if they exist)
+          if (formattingRules.trim()) {
+            apiMessages.push({ role: 'system', content: `[formatting_rules]\n${formattingRules}` })
+          }
 
           // Add global system prompt if it exists
           if (systemPrompt.trim()) {
