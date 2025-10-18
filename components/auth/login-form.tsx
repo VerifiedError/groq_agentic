@@ -51,24 +51,40 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
     setIsLoading(true)
 
     try {
+      console.log('[Login] Attempting login for username:', data.username)
+
       const result = await signIn('credentials', {
         username: data.username,
         password: data.password,
         redirect: false,
       })
 
+      console.log('[Login] Result:', {
+        ok: result?.ok,
+        status: result?.status,
+        error: result?.error,
+        url: result?.url,
+      })
+
       if (result?.ok) {
         // Successful login
+        console.log('[Login] Success - redirecting to:', redirectTo)
         router.push(redirectTo)
         router.refresh()
       } else {
-        // Authentication failed
-        setError('Invalid username or password')
+        // Authentication failed - show specific error from NextAuth
+        const errorMessage = result?.error
+          ? result.error
+          : `Authentication failed (Status: ${result?.status || 'unknown'})`
+
+        console.error('[Login] Failed:', errorMessage)
+        setError(errorMessage)
         setValue('password', '') // Clear password on error
       }
     } catch (err) {
-      console.error('Login error:', err)
-      setError('An error occurred during login. Please try again.')
+      console.error('[Login] Exception:', err)
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during login'
+      setError(errorMessage)
     } finally {
       setIsLoading(false)
     }

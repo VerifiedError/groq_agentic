@@ -37,26 +37,33 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials, req) {
+        console.log('[Auth] Authorize called')
+
         if (!credentials?.username || !credentials?.password) {
-          return null
+          console.error('[Auth] Missing credentials')
+          throw new Error('Username and password are required')
         }
 
         const username = credentials.username.toLowerCase().trim()
         const password = credentials.password
 
+        console.log('[Auth] Attempting login for username:', username)
+
         // Get client IP for rate limiting
         const ip = getClientIp(req)
+        console.log('[Auth] Client IP:', ip)
 
         // Check rate limit
         const rateLimit = checkRateLimit(username, ip)
         if (rateLimit.isBlocked) {
-          console.warn(`Rate limit exceeded for ${username} from ${ip}`)
+          console.warn(`[Auth] Rate limit exceeded for ${username} from ${ip}`)
           throw new Error(
             `Too many failed attempts. Try again in ${rateLimit.remainingTime} minutes.`
           )
         }
 
         // Find user by username (case-insensitive)
+        console.log('[Auth] Looking up user in database...')
         const user = await prisma.user.findFirst({
           where: {
             username: {
@@ -68,33 +75,43 @@ export const authOptions: NextAuthOptions = {
 
         // User not found
         if (!user) {
+          console.warn(`[Auth] User not found: ${username}`)
           recordFailedAttempt(username, ip)
-          return null
+          throw new Error('Invalid username or password')
         }
+
+        console.log('[Auth] User found:', { id: user.id, username: user.username, isActive: user.isActive })
 
         // Check if user is active
         if (!user.isActive) {
-          console.warn(`Inactive user attempted login: ${username}`)
-          return null
+          console.warn(`[Auth] Inactive user attempted login: ${username}`)
+          throw new Error('Account is disabled. Please contact an administrator.')
         }
 
         // Verify password
+        console.log('[Auth] Verifying password...')
         const isValid = await verifyPassword(password, user.passwordHash)
 
         if (!isValid) {
+          console.warn(`[Auth] Invalid password for user: ${username}`)
           recordFailedAttempt(username, ip)
-          return null
+          throw new Error('Invalid username or password')
         }
+
+        console.log('[Auth] Password verified successfully')
 
         // Successful login - clear rate limit and update lastLoginAt
         clearRateLimit(username, ip)
 
+        console.log('[Auth] Updating lastLoginAt...')
         await prisma.user.update({
           where: { id: user.id },
           data: {
             lastLoginAt: new Date(),
           },
         })
+
+        console.log('[Auth] Login successful for:', username)
 
         // Return user data for session
         return {
