@@ -39,6 +39,25 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials, req) {
         console.log('[Auth] Authorize called')
 
+        // Environment variable checks
+        console.log('[Auth] Environment check:', {
+          hasNextAuthUrl: !!process.env.NEXTAUTH_URL,
+          nextAuthUrl: process.env.NEXTAUTH_URL,
+          hasNextAuthSecret: !!process.env.NEXTAUTH_SECRET,
+          hasDatabase: !!process.env.DATABASE_URL,
+          nodeEnv: process.env.NODE_ENV,
+        })
+
+        if (!process.env.NEXTAUTH_URL) {
+          console.error('[Auth] CRITICAL: NEXTAUTH_URL not set!')
+          throw new Error('Authentication system misconfigured. Contact administrator.')
+        }
+
+        if (!process.env.NEXTAUTH_SECRET) {
+          console.error('[Auth] CRITICAL: NEXTAUTH_SECRET not set!')
+          throw new Error('Authentication system misconfigured. Contact administrator.')
+        }
+
         if (!credentials?.username || !credentials?.password) {
           console.error('[Auth] Missing credentials')
           throw new Error('Username and password are required')

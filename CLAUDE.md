@@ -84,6 +84,47 @@ vercel login           # Authenticate with Vercel (one-time)
 - ✅ No hardcoded localhost URLs
 - ✅ Environment variables documented
 
+### Clearing Vercel Cache
+
+When environment variables are updated or you need to force a fresh deployment without stale cache:
+
+**Clear Cache:**
+```bash
+vercel cache purge
+```
+
+**Redeploy with Fresh Cache:**
+```bash
+# Get latest deployment URL
+vercel ls --yes | head -1
+
+# Redeploy that deployment
+vercel redeploy <deployment-url>
+```
+
+**Complete Cache Clear & Redeploy (One Command):**
+```bash
+# Clear cache and redeploy latest
+vercel cache purge && vercel redeploy $(vercel ls --yes | head -1 | head -1)
+```
+
+**Why Clear Cache:**
+- Environment variables changed (NEXTAUTH_URL, API keys, etc.)
+- Force fresh build without cached dependencies
+- Clear CDN cache for static assets
+- Resolve "stale code" issues after deployment
+
+**What Gets Cleared:**
+- ✅ CDN cache (static files, pages)
+- ✅ Data cache (API responses, ISR)
+- ✅ Build cache (forces complete rebuild)
+
+**Example Use Cases:**
+- After adding `NEXTAUTH_URL` environment variable
+- After updating database connection strings
+- When deployment uses old code despite new commit
+- When authentication cookies aren't working
+
 ### Docker Deployment (Local)
 
 **Quick Update:**

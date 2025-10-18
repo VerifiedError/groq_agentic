@@ -45,7 +45,7 @@ function LoginContent() {
             {APP_VERSION} © 2025
           </p>
           <p className="text-xs font-mono text-gray-400">
-            Login Fix v7 - NextAuth Redirect
+            Login Fix v8 - Persistent Debug & Error Handling
           </p>
         </div>
       </div>
