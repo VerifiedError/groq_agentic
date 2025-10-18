@@ -44,6 +44,19 @@ This file provides guidance when working with code in this repository.
 - **Build Command**: `npm run build`
 - **Start Command**: `npm start`
 
+**One-Click Deployment:**
+```bash
+vercel-update.bat  # Commit, push, and deploy to Vercel
+```
+
+**What it does:**
+1. Checks git status for uncommitted changes
+2. Prompts for commit message (if changes exist)
+3. Commits all changes with provided message
+4. Pushes to GitHub `master` branch
+5. Triggers automatic Vercel deployment
+6. Opens Vercel dashboard for monitoring
+
 **Deployment Checklist:**
 - ✅ All API routes have `export const dynamic = 'force-dynamic'`
 - ✅ Database migrations included in `prisma/migrations/`
