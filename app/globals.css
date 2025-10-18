@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PWA Mobile-First Styles */
+@layer base {
+  /* Prevent pull-to-refresh and overscroll on mobile */
+  html, body {
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile */
+  }
+
+  /* Ensure main app container fills screen */
+  #__next {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

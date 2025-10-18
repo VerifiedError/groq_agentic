@@ -14,21 +14,21 @@ function LoginContent() {
   // after successful login. This prevents race conditions.
 
   return (
-    <div className="h-screen overflow-hidden flex items-center justify-center bg-gray-50 p-4">
-      {/* Mobile: Full screen card, Desktop: Centered card */}
-      <div className="w-full max-w-[450px] max-h-[90vh] overflow-y-auto p-8 md:p-10 bg-white border-2 border-black rounded-2xl shadow-lg">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Sparkles className="w-8 h-8 text-gray-900" />
-            <h1 className="text-4xl font-bold text-gray-900">
+    <div className="h-screen h-[100dvh] overflow-hidden flex flex-col items-center justify-center bg-gray-50 p-4">
+      {/* PWA-optimized: No scrolling, fits viewport exactly */}
+      <div className="w-full max-w-[450px] flex flex-col p-6 md:p-8 bg-white border-2 border-black rounded-2xl shadow-lg">
+        {/* Header - Compact */}
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Sparkles className="w-7 h-7 text-gray-900" />
+            <h1 className="text-3xl font-bold text-gray-900">
               {APP_NAME}
             </h1>
           </div>
-          <p className="text-gray-600 text-lg font-medium">
+          <p className="text-gray-600 text-base font-medium">
             {APP_TAGLINE}
           </p>
-          <p className="text-gray-500 text-sm mt-2">
+          <p className="text-gray-500 text-xs mt-1">
             Sign in to continue
           </p>
         </div>
@@ -36,16 +36,13 @@ function LoginContent() {
         {/* Login Form */}
         <LoginForm redirectTo={redirectTo} />
 
-        {/* Footer */}
-        <div className="mt-8 text-center space-y-2">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+        {/* Footer - Compact */}
+        <div className="mt-6 text-center space-y-1">
+          <p className="text-[10px] text-gray-500 dark:text-gray-400">
             Powered by Groq Compound AI
           </p>
-          <p className="text-xs text-gray-400 dark:text-gray-500">
+          <p className="text-[10px] text-gray-400 dark:text-gray-500">
             {APP_VERSION} © 2025
-          </p>
-          <p className="text-xs font-mono text-gray-400">
-            Login Fix v12 - Remove Custom Cookie Config
           </p>
         </div>
       </div>

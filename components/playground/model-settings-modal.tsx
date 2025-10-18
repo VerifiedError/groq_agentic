@@ -39,9 +39,9 @@ export function ModelSettingsModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[700] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
       <div
-        className="relative w-full max-w-md max-h-[90vh] overflow-y-auto border bg-background shadow-2xl rounded-xl transition-all"
+        className="relative w-full max-w-md h-[85vh] h-[85dvh] flex flex-col border bg-background shadow-2xl rounded-xl transition-all overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -52,16 +52,14 @@ export function ModelSettingsModal({
           <X className="h-5 w-5" />
         </button>
 
-        {/* Content */}
-        <div className="flex flex-col">
-          {/* Header */}
-          <div className="p-6 pb-4 border-b">
-            <h2 className="text-xl font-semibold">Model Settings</h2>
-            <p className="text-sm text-muted-foreground mt-1">Adjust AI model parameters</p>
-          </div>
+        {/* Header - Fixed */}
+        <div className="p-6 pb-4 border-b flex-shrink-0">
+          <h2 className="text-xl font-semibold">Model Settings</h2>
+          <p className="text-sm text-muted-foreground mt-1">Adjust AI model parameters</p>
+        </div>
 
-          {/* Main Settings Content */}
-          <div className="p-6 space-y-6">
+        {/* Main Settings Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Temperature */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
@@ -165,24 +163,23 @@ export function ModelSettingsModal({
                 />
               </div>
             </div>
-          </div>
+        </div>
 
-          {/* Action Buttons Footer */}
-          <div className="p-6 pt-4 border-t bg-accent/5">
-            <div className="flex gap-3">
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-3 text-sm font-medium border border-input rounded-lg hover:bg-accent transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="flex-1 px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
-              >
-                Save
-              </button>
-            </div>
+        {/* Action Buttons Footer - Fixed */}
+        <div className="p-6 pt-4 border-t bg-accent/5 flex-shrink-0">
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 text-sm font-medium border border-input rounded-lg hover:bg-accent transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 px-4 py-3 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all"
+            >
+              Save
+            </button>
           </div>
         </div>
       </div>

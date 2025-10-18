@@ -191,7 +191,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen h-[100dvh] overflow-hidden bg-background">
       {/* Mobile Header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 border-b bg-card/50 backdrop-blur-sm safe-top">
         <div className="flex items-center justify-between px-3 py-3">
