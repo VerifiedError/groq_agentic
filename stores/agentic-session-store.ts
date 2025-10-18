@@ -7,6 +7,11 @@ export interface Message {
   reasoning?: string
   images?: string[] // For vision messages
   timestamp?: Date
+  // Cost tracking (per message)
+  cost?: number
+  inputTokens?: number
+  outputTokens?: number
+  cachedTokens?: number
 }
 
 export interface Session {
@@ -190,18 +195,38 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       const { message: savedMessage } = await response.json()
 
-      // Add to local state
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === currentSessionId
-            ? {
-                ...s,
-                messages: [...s.messages, savedMessage],
-                updatedAt: new Date(),
-              }
-            : s
-        ),
-      }))
+      // Update session cost if message has cost data
+      if (message.cost && message.inputTokens !== undefined && message.outputTokens !== undefined) {
+        const currentSession = get().sessions.find((s) => s.id === currentSessionId)
+        if (currentSession) {
+          set((state) => ({
+            sessions: state.sessions.map((s) =>
+              s.id === currentSessionId
+                ? {
+                    ...s,
+                    totalCost: s.totalCost + (message.cost || 0),
+                    totalTokens: s.totalTokens + (message.inputTokens || 0) + (message.outputTokens || 0),
+                    messages: [...s.messages, savedMessage],
+                    updatedAt: new Date(),
+                  }
+                : s
+            ),
+          }))
+        }
+      } else {
+        // Add to local state without cost update
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === currentSessionId
+              ? {
+                  ...s,
+                  messages: [...s.messages, savedMessage],
+                  updatedAt: new Date(),
+                }
+              : s
+          ),
+        }))
+      }
     } catch (error) {
       console.error('Failed to add message:', error)
       // Fallback to client-only message
@@ -217,6 +242,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             ? {
                 ...s,
                 messages: [...s.messages, newMessage],
+                totalCost: s.totalCost + (message.cost || 0),
+                totalTokens: s.totalTokens + (message.inputTokens || 0) + (message.outputTokens || 0),
                 updatedAt: new Date(),
               }
             : s

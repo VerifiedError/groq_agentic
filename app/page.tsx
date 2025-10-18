@@ -183,6 +183,8 @@ export default function HomePage() {
       const decoder = new TextDecoder()
       let fullContent = ''
       let fullReasoning = ''
+      let usageData: any = null
+      let costData: number = 0
 
       while (true) {
         const { done, value } = await reader.read()
@@ -211,12 +213,26 @@ export default function HomePage() {
 
             if (data.done) {
               const { cleanContent, extractedReasoning } = extractThinkTags(fullContent)
-              // Add assistant message to session store
+
+              // Capture usage and cost data
+              if (data.usage) {
+                usageData = data.usage
+              }
+              if (data.cost !== undefined) {
+                costData = data.cost
+              }
+
+              // Add assistant message to session store with cost/usage
               addMessage({
                 role: 'assistant',
                 content: cleanContent,
                 reasoning: extractedReasoning,
+                cost: costData,
+                inputTokens: usageData?.prompt_tokens || 0,
+                outputTokens: usageData?.completion_tokens || 0,
+                cachedTokens: usageData?.cached_tokens || 0,
               })
+
               setStreamingContent('')
               setStreamingReasoning('')
             }

@@ -1,7 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
+
+interface Model {
+  id: string
+  displayName: string
+  isVision: boolean
+  inputPricing: number
+  outputPricing: number
+}
 
 interface ModelSettingsModalProps {
   isOpen: boolean
@@ -26,13 +34,42 @@ export function ModelSettingsModal({
   onSettingsChange
 }: ModelSettingsModalProps) {
   const [localSettings, setLocalSettings] = useState(settings)
+  const [localModel, setLocalModel] = useState(selectedModel)
+  const [models, setModels] = useState<Model[]>([])
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
 
   useEffect(() => {
     setLocalSettings(settings)
   }, [settings])
 
+  useEffect(() => {
+    setLocalModel(selectedModel)
+  }, [selectedModel])
+
+  // Load models from API
+  useEffect(() => {
+    if (isOpen && models.length === 0) {
+      loadModels()
+    }
+  }, [isOpen])
+
+  const loadModels = async () => {
+    setIsLoadingModels(true)
+    try {
+      const response = await fetch('/api/models')
+      if (!response.ok) throw new Error('Failed to fetch models')
+      const data = await response.json()
+      setModels(data.models || [])
+    } catch (error) {
+      console.error('Failed to load models:', error)
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
+
   const handleSave = () => {
     onSettingsChange(localSettings)
+    onModelChange(localModel)
     onClose()
   }
 
@@ -60,6 +97,35 @@ export function ModelSettingsModal({
 
         {/* Main Settings Content - Scrollable */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {/* Model Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">AI Model</label>
+              <p className="text-xs text-muted-foreground mb-2">Select the model to use</p>
+              {isLoadingModels ? (
+                <div className="flex items-center justify-center gap-2 p-3 border rounded-md bg-accent/20">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm text-muted-foreground">Loading models...</span>
+                </div>
+              ) : (
+                <select
+                  value={localModel}
+                  onChange={(e) => setLocalModel(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  {models.length === 0 ? (
+                    <option value={localModel}>{localModel}</option>
+                  ) : (
+                    models.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.displayName} {model.isVision ? '🎨' : ''}
+                        {' - $'}{model.inputPricing.toFixed(2)}/{model.outputPricing.toFixed(2)} per 1M
+                      </option>
+                    ))
+                  )}
+                </select>
+              )}
+            </div>
+
             {/* Temperature */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">

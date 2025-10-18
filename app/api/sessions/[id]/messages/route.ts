@@ -36,7 +36,7 @@ export async function POST(
 
     const { id: sessionId } = await params
     const body = await request.json()
-    const { role, content, reasoning, images } = body
+    const { role, content, reasoning, images, cost, inputTokens, outputTokens, cachedTokens } = body
 
     if (!role || !content) {
       return NextResponse.json(
@@ -60,7 +60,7 @@ export async function POST(
       )
     }
 
-    // Create message
+    // Create message with cost tracking
     const message = await prisma.agenticMessage.create({
       data: {
         sessionId,
@@ -68,15 +68,31 @@ export async function POST(
         content,
         reasoning: reasoning || null,
         attachments: images ? JSON.stringify(images) : null,
+        cost: cost || 0,
+        inputTokens: inputTokens || 0,
+        outputTokens: outputTokens || 0,
+        cachedTokens: cachedTokens || 0,
       },
     })
 
-    // Update session message count and timestamp
+    // Update session message count, cost, tokens, and timestamp
     await prisma.agenticSession.update({
       where: { id: sessionId },
       data: {
         messageCount: {
           increment: 1,
+        },
+        totalCost: {
+          increment: cost || 0,
+        },
+        inputTokens: {
+          increment: inputTokens || 0,
+        },
+        outputTokens: {
+          increment: outputTokens || 0,
+        },
+        cachedTokens: {
+          increment: cachedTokens || 0,
         },
         updatedAt: new Date(),
       },
@@ -90,6 +106,10 @@ export async function POST(
       reasoning: message.reasoning || undefined,
       images: message.attachments ? JSON.parse(message.attachments) : undefined,
       timestamp: message.createdAt,
+      cost: message.cost,
+      inputTokens: message.inputTokens,
+      outputTokens: message.outputTokens,
+      cachedTokens: message.cachedTokens,
     }
 
     return NextResponse.json({ message: transformedMessage })

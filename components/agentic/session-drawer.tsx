@@ -1,6 +1,7 @@
 'use client'
 
-import { X, Plus, Trash2, MessageSquare } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { X, Plus, Trash2, MessageSquare, Search } from 'lucide-react'
 import { useSessionStore } from '@/stores/agentic-session-store'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -17,6 +18,8 @@ export function SessionDrawer({ isOpen, onClose }: SessionDrawerProps) {
     createSession,
     deleteSession,
   } = useSessionStore()
+
+  const [searchQuery, setSearchQuery] = useState('')
 
   const handleSelectSession = (sessionId: string) => {
     setCurrentSession(sessionId)
@@ -35,8 +38,20 @@ export function SessionDrawer({ isOpen, onClose }: SessionDrawerProps) {
     }
   }
 
+  // Filter sessions based on search query
+  const filteredSessions = useMemo(() => {
+    if (!searchQuery.trim()) return sessions
+
+    const query = searchQuery.toLowerCase()
+    return sessions.filter((session) =>
+      session.name.toLowerCase().includes(query) ||
+      session.model.toLowerCase().includes(query) ||
+      session.messages.some((msg) => msg.content.toLowerCase().includes(query))
+    )
+  }, [sessions, searchQuery])
+
   // Group sessions by date
-  const groupedSessions = sessions.reduce((groups, session) => {
+  const groupedSessions = filteredSessions.reduce((groups, session) => {
     const today = new Date()
     const sessionDate = new Date(session.createdAt)
 
@@ -92,6 +107,28 @@ export function SessionDrawer({ isOpen, onClose }: SessionDrawerProps) {
           </button>
         </div>
 
+        {/* Search Bar */}
+        <div className="px-4 py-3 border-b flex-shrink-0">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search sessions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Sessions List - Scrollable */}
         <div className="flex-1 overflow-y-auto">
           {Object.entries(groupedSessions).map(([group, groupSessions]) => (
@@ -138,6 +175,21 @@ export function SessionDrawer({ isOpen, onClose }: SessionDrawerProps) {
               <p className="text-sm text-muted-foreground">
                 No sessions yet. Create your first chat!
               </p>
+            </div>
+          )}
+
+          {searchQuery && filteredSessions.length === 0 && sessions.length > 0 && (
+            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+              <Search className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-sm text-muted-foreground">
+                No sessions found matching "{searchQuery}"
+              </p>
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-3 text-sm text-primary hover:underline"
+              >
+                Clear search
+              </button>
             </div>
           )}
         </div>
