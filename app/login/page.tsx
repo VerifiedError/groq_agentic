@@ -45,7 +45,7 @@ function LoginContent() {
             {APP_VERSION} © 2025
           </p>
           <p className="text-xs font-mono text-gray-400">
-            Login Fix v10 - Race Condition Fix
+            Login Fix v11 - Middleware Debug Logging
           </p>
         </div>
       </div>
