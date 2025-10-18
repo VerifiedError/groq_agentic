@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { X, Power, Lightbulb, Check, Loader2, FileText } from 'lucide-react'
+import { X, Power, Lightbulb, Check, Loader2, FileText, Globe } from 'lucide-react'
 import { PresetDropdown } from './preset-dropdown'
 import { encode } from 'gpt-tokenizer'
 import { FILE_PARSER_OPTIONS, FileParserEngine } from '@/lib/file-parsers'
+import { PROVIDER_OPTIONS, AIProvider, detectProvider } from '@/lib/provider-utils'
 
 interface Model {
   id: string
@@ -25,6 +26,7 @@ interface ModelSettingsModalProps {
     systemPrompt: string
     label: string
     fileParserEngine: FileParserEngine
+    provider: AIProvider
   }
   onSave: (settings: any) => void
   onApplyToAll: (settings: any) => void
@@ -285,6 +287,33 @@ export function ModelSettingsModal({
                 ))}
               </select>
               <p className="text-xs text-muted-foreground">How uploaded files should be processed</p>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+            {/* AI Provider */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Globe className="h-4 w-4" />
+                AI Provider
+              </label>
+              <select
+                value={localSettings.provider}
+                onChange={(e) => setLocalSettings({ ...localSettings, provider: e.target.value as AIProvider })}
+                className="w-full px-4 py-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
+              >
+                {PROVIDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.icon} {option.label} - {option.description}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {localSettings.provider === 'auto'
+                  ? `Auto-detected: ${detectProvider(modelId)}`
+                  : 'Route requests to this provider'}
+              </p>
             </div>
 
             {/* Divider */}

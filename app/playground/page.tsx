@@ -40,6 +40,7 @@ import { ArtifactTemplate, ArtifactType } from '@/lib/artifact-templates'
 import { extractArtifactsFromResponse } from '@/lib/code-detector'
 import { parseArtifactResponse } from '@/lib/artifact-parser'
 import { ARTIFACT_GENERATION_SYSTEM_PROMPT } from '@/lib/artifact-system-prompts'
+import { detectProvider, getProviderIcon, getProviderColor } from '@/lib/provider-utils'
 
 interface Model {
   id: string
@@ -124,6 +125,7 @@ export default function PlaygroundChatPage() {
     systemPrompt: string
     label: string
     fileParserEngine: 'auto' | 'markdown' | 'pdf' | 'code' | 'json-yaml' | 'plain-text'
+    provider: 'auto' | 'groq' | 'openrouter' | 'openai' | 'anthropic' | 'google' | 'mistral' | 'cohere'
   }>>({})
   const [openSettingsPopover, setOpenSettingsPopover] = useState<string | null>(null)
   const [openSettingsModal, setOpenSettingsModal] = useState<string | null>(null)
@@ -380,7 +382,8 @@ export default function PlaygroundChatPage() {
     formattingRules: '',
     systemPrompt: '',
     label: models.find(m => m.id === modelId)?.displayName || modelId,
-    fileParserEngine: 'auto' as const
+    fileParserEngine: 'auto' as const,
+    provider: 'auto' as const
   })
 
   // Get settings for a model (or return defaults)
@@ -1183,9 +1186,18 @@ export default function PlaygroundChatPage() {
                     }}
                     className="relative flex h-9 items-center justify-between gap-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-600 transition-all shadow-sm px-3 cursor-pointer"
                   >
-                    <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {settings.label || model?.displayName || modelId}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {/* Provider Badge */}
+                      <span
+                        className={`inline-flex items-center justify-center h-5 w-5 rounded text-xs ${getProviderColor(settings.provider === 'auto' ? detectProvider(modelId) : settings.provider)}`}
+                        title={`Provider: ${settings.provider === 'auto' ? detectProvider(modelId) : settings.provider}`}
+                      >
+                        {getProviderIcon(settings.provider === 'auto' ? detectProvider(modelId) : settings.provider)}
+                      </span>
+                      <span className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+                        {settings.label || model?.displayName || modelId}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1">
                       {/* Settings Button */}
                       <button
