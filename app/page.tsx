@@ -15,7 +15,7 @@ import {
   Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import ReactMarkdown from 'react-markdown'
+import { Streamdown } from 'streamdown'
 import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
 import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
@@ -302,7 +302,7 @@ export default function HomePage() {
                           <ReasoningDisplay reasoning={message.reasoning} className="mb-3" />
                         )}
                         <div className={`prose dark:prose-invert max-w-none ${message.role === 'user' && 'prose-invert'}`}>
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
+                          <Streamdown>{message.content}</Streamdown>
                         </div>
                       </div>
                     </div>
@@ -332,7 +332,7 @@ export default function HomePage() {
                         />
                       )}
                       <div className="prose dark:prose-invert max-w-none">
-                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
+                        <Streamdown streaming>{streamingContent}</Streamdown>
                       </div>
                       <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
