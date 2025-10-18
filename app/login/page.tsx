@@ -45,7 +45,7 @@ function LoginContent() {
             {APP_VERSION} © 2025
           </p>
           <p className="text-xs font-mono text-gray-400">
-            Login Fix v3
+            Login Fix v4 - Debug Mode
           </p>
         </div>
       </div>

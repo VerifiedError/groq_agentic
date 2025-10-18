@@ -31,6 +31,13 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState('')
+  const [debugLog, setDebugLog] = useState<string[]>([])
+
+  const addDebugLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString()
+    setDebugLog(prev => [...prev, `[${timestamp}] ${message}`])
+    console.log(`[Login Debug] ${message}`)
+  }
 
   const {
     register,
@@ -49,11 +56,13 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
 
   const onSubmit = async (data: LoginFormData) => {
     setError('')
+    setDebugLog([]) // Clear previous logs
+    addDebugLog('Starting login process...')
     setDebugInfo('Starting login...')
     setIsLoading(true)
 
     try {
-      console.log('[Login] Attempting login for username:', data.username)
+      addDebugLog(`Attempting to authenticate: ${data.username}`)
       setDebugInfo(`Authenticating ${data.username}...`)
 
       const result = await signIn('credentials', {
@@ -63,23 +72,20 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
         redirect: false,
       })
 
-      console.log('[Login] Result:', {
-        ok: result?.ok,
-        status: result?.status,
-        error: result?.error,
-        url: result?.url,
-      })
+      addDebugLog(`SignIn result: ok=${result?.ok}, status=${result?.status}, error=${result?.error}`)
 
       setDebugInfo(`Result: ${result?.ok ? 'Success' : 'Failed'} (Status: ${result?.status})`)
 
       if (result?.ok) {
         // Successful login - wait longer before redirect to ensure cookie is set
-        console.log('[Login] Success - redirecting to:', redirectTo)
+        addDebugLog('✅ Authentication successful!')
+        addDebugLog(`Redirect target: ${redirectTo}`)
         setDebugInfo('Login successful! Redirecting...')
 
-        // Wait 1.5 seconds to ensure session cookie is fully set
+        addDebugLog('Waiting 1.5 seconds for session cookie to set...')
         await new Promise(resolve => setTimeout(resolve, 1500))
 
+        addDebugLog('Attempting redirect via window.location.href...')
         // Use window.location for hard redirect to ensure fresh session
         window.location.href = redirectTo
       } else {
@@ -88,15 +94,15 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
           ? result.error
           : `Authentication failed (Status: ${result?.status || 'unknown'})`
 
-        console.error('[Login] Failed:', errorMessage)
+        addDebugLog(`❌ Authentication failed: ${errorMessage}`)
         setError(errorMessage)
         setDebugInfo('')
         setValue('password', '') // Clear password on error
         setIsLoading(false)
       }
     } catch (err) {
-      console.error('[Login] Exception:', err)
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during login'
+      addDebugLog(`❌ Exception during login: ${errorMessage}`)
       setError(errorMessage)
       setDebugInfo('')
       setIsLoading(false)
@@ -188,6 +194,16 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
           </label>
         </div>
       </div>
+
+      {/* Debug Log Display - Always visible */}
+      {debugLog.length > 0 && (
+        <div className="p-4 bg-yellow-50 border-2 border-yellow-500 rounded-lg max-h-40 overflow-y-auto">
+          <p className="text-xs font-bold text-yellow-900 mb-2">🔍 DEBUG LOG:</p>
+          {debugLog.map((log, idx) => (
+            <p key={idx} className="text-xs font-mono text-yellow-900">{log}</p>
+          ))}
+        </div>
+      )}
 
       {/* Debug Info Display */}
       {debugInfo && (
