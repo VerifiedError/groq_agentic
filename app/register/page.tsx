@@ -12,27 +12,19 @@ function RegisterContent() {
   const router = useRouter()
 
   useEffect(() => {
-    // Redirect authenticated users
+    // Redirect authenticated users silently
     if (status === 'authenticated') {
-      router.push('/')
+      router.replace('/')
     }
   }, [status, router])
 
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-900 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p>Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  // Don't show loading state - just show the form immediately
+  // The redirect will happen in the background if needed
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="h-screen overflow-hidden flex items-center justify-center bg-gray-50 p-4">
       {/* Mobile: Full screen card, Desktop: Centered card */}
-      <div className="w-full max-w-[500px] p-8 md:p-10 bg-white border-2 border-black rounded-2xl shadow-lg">
+      <div className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto p-8 md:p-10 bg-white border-2 border-black rounded-2xl shadow-lg">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-3">

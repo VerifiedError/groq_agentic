@@ -30,6 +30,7 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
   const router = useRouter()
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [debugInfo, setDebugInfo] = useState('')
 
   const {
     register,
@@ -48,10 +49,12 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
 
   const onSubmit = async (data: LoginFormData) => {
     setError('')
+    setDebugInfo('Starting login...')
     setIsLoading(true)
 
     try {
       console.log('[Login] Attempting login for username:', data.username)
+      setDebugInfo(`Authenticating ${data.username}...`)
 
       const result = await signIn('credentials', {
         username: data.username,
@@ -66,9 +69,12 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
         url: result?.url,
       })
 
+      setDebugInfo(`Result: ${result?.ok ? 'Success' : 'Failed'} (Status: ${result?.status})`)
+
       if (result?.ok) {
         // Successful login
         console.log('[Login] Success - redirecting to:', redirectTo)
+        setDebugInfo('Login successful! Redirecting...')
         router.push(redirectTo)
         router.refresh()
       } else {
@@ -79,12 +85,14 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
 
         console.error('[Login] Failed:', errorMessage)
         setError(errorMessage)
+        setDebugInfo('')
         setValue('password', '') // Clear password on error
       }
     } catch (err) {
       console.error('[Login] Exception:', err)
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred during login'
       setError(errorMessage)
+      setDebugInfo('')
     } finally {
       setIsLoading(false)
     }
@@ -175,10 +183,17 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* Debug Info Display */}
+      {debugInfo && (
+        <div className="p-3 bg-blue-50 border-2 border-blue-500 rounded-lg">
+          <p className="text-sm font-medium text-blue-700">{debugInfo}</p>
+        </div>
+      )}
+
+      {/* Error Display - Always visible for debugging */}
       {error && (
-        <div className="p-3 bg-red-50 border-2 border-red-300 rounded-lg">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="p-4 bg-red-50 border-2 border-red-500 rounded-lg">
+          <p className="text-sm font-semibold text-red-700">{error}</p>
         </div>
       )}
 
