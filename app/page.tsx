@@ -20,7 +20,7 @@ import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
 import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 import { AdminDashboard } from '@/components/admin/admin-dashboard'
-import { isAdmin } from '@/lib/admin-middleware'
+import { isAdmin } from '@/lib/admin-utils'
 
 interface Model {
   id: string

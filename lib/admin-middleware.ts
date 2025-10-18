@@ -37,12 +37,3 @@ export async function requireAdmin() {
     session,
   }
 }
-
-/**
- * Helper to check if a user is an admin in client components
- * @param session - NextAuth session object
- * @returns boolean
- */
-export function isAdmin(session: any): boolean {
-  return session?.user?.role === 'admin'
-}
