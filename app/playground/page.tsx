@@ -119,8 +119,11 @@ export default function PlaygroundChatPage() {
     temperature: number
     maxTokens: number
     topP: number
+    chatMemory: number
+    formattingRules: string
     systemPrompt: string
     label: string
+    fileParserEngine: 'auto' | 'markdown' | 'pdf' | 'code' | 'json-yaml' | 'plain-text'
   }>>({})
   const [openSettingsPopover, setOpenSettingsPopover] = useState<string | null>(null)
   const [openSettingsModal, setOpenSettingsModal] = useState<string | null>(null)
@@ -376,7 +379,8 @@ export default function PlaygroundChatPage() {
     chatMemory: 8,
     formattingRules: '',
     systemPrompt: '',
-    label: models.find(m => m.id === modelId)?.displayName || modelId
+    label: models.find(m => m.id === modelId)?.displayName || modelId,
+    fileParserEngine: 'auto' as const
   })
 
   // Get settings for a model (or return defaults)

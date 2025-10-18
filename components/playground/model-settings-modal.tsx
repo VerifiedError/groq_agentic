@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { X, Power, Lightbulb, Check, Loader2 } from 'lucide-react'
+import { X, Power, Lightbulb, Check, Loader2, FileText } from 'lucide-react'
 import { PresetDropdown } from './preset-dropdown'
 import { encode } from 'gpt-tokenizer'
+import { FILE_PARSER_OPTIONS, FileParserEngine } from '@/lib/file-parsers'
 
 interface Model {
   id: string
@@ -23,6 +24,7 @@ interface ModelSettingsModalProps {
     formattingRules: string
     systemPrompt: string
     label: string
+    fileParserEngine: FileParserEngine
   }
   onSave: (settings: any) => void
   onApplyToAll: (settings: any) => void
@@ -260,6 +262,29 @@ export function ModelSettingsModal({
                 {currentModel?.displayName || modelId}
               </div>
               <p className="text-xs text-muted-foreground">The underlying AI model being used</p>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+            {/* File Parser Engine */}
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                File Parser Engine
+              </label>
+              <select
+                value={localSettings.fileParserEngine}
+                onChange={(e) => setLocalSettings({ ...localSettings, fileParserEngine: e.target.value as FileParserEngine })}
+                className="w-full px-4 py-3 text-sm border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
+              >
+                {FILE_PARSER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.icon} {option.label} - {option.description}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">How uploaded files should be processed</p>
             </div>
 
             {/* Divider */}
