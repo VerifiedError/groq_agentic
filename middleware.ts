@@ -6,7 +6,7 @@ import { getToken } from 'next-auth/jwt'
 const protectedRoutes = ['/', '/playground']
 
 // Define public routes (no auth required)
-const publicRoutes = ['/login']
+const publicRoutes = ['/login', '/register']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl

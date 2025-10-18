@@ -72,11 +72,14 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
       setDebugInfo(`Result: ${result?.ok ? 'Success' : 'Failed'} (Status: ${result?.status})`)
 
       if (result?.ok) {
-        // Successful login
+        // Successful login - use hard redirect to ensure session is loaded
         console.log('[Login] Success - redirecting to:', redirectTo)
         setDebugInfo('Login successful! Redirecting...')
-        router.push(redirectTo)
-        router.refresh()
+
+        // Use window.location for hard redirect to ensure fresh session
+        setTimeout(() => {
+          window.location.href = redirectTo
+        }, 500) // Small delay to show success message
       } else {
         // Authentication failed - show specific error from NextAuth
         const errorMessage = result?.error

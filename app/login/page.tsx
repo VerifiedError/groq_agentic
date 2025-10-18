@@ -1,27 +1,17 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Sparkles } from 'lucide-react'
 import { LoginForm } from '@/components/auth/login-form'
 import { APP_VERSION, APP_NAME, APP_TAGLINE } from '@/lib/version'
 
 function LoginContent() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/'
 
-  useEffect(() => {
-    // Redirect authenticated users silently
-    if (status === 'authenticated') {
-      router.replace(redirectTo)
-    }
-  }, [status, router, redirectTo])
-
-  // Don't show loading state - just show the form immediately
-  // The redirect will happen in the background if needed
+  // No authentication check needed here - the login form handles the redirect
+  // after successful login. This prevents race conditions.
 
   return (
     <div className="h-screen overflow-hidden flex items-center justify-center bg-gray-50 p-4">
