@@ -1,44 +1,57 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { Send, Loader2, Bot, User, Brain, Paperclip, X, Image as ImageIcon, Menu } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import {
+  Send,
+  Loader2,
+  Bot,
+  User,
+  Menu,
+  Settings,
+  Plus,
+  RefreshCw,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
-import { cn } from '@/lib/utils'
-import { isVisionModel } from '@/lib/groq-utils'
-import useAgenticSessionStore from '@/stores/agentic-session-store'
-import { SessionSidebar } from '@/components/agentic/session-sidebar'
-import { SessionHeader } from '@/components/agentic/session-header'
-import { MessageCostBadge } from '@/components/agentic/message-cost-badge'
-import { VisionMessage } from '@/components/agentic/vision-message'
 import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
 import { extractThinkTags } from '@/lib/reasoning-parser'
+import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
 
-export default function AgenticPage() {
+interface Model {
+  id: string
+  displayName: string
+}
+
+interface Message {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  reasoning?: string
+}
+
+export default function HomePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  const {
-    activeSessionId,
-    messages,
-    isLoadingMessages,
-    fetchSessions,
-    fetchSessionMessages,
-    setActiveSession,
-    getActiveSession,
-  } = useAgenticSessionStore()
-
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
-  const [streamingReasoning, setStreamingReasoning] = useState('') // Track reasoning from models like DeepSeek-R1, Qwen, GPT-OSS
-  const [attachments, setAttachments] = useState<Array<{ data: string; name: string; type: string }>>([])
+  const [streamingReasoning, setStreamingReasoning] = useState('')
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile')
+  const [settings, setSettings] = useState({
+    temperature: 0.7,
+    maxTokens: 2048,
+    topP: 0.9,
+    webSearch: false,
+  })
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -46,20 +59,6 @@ export default function AgenticPage() {
       router.push('/login')
     }
   }, [status, router])
-
-  // Load sessions on mount
-  useEffect(() => {
-    if (status === 'authenticated') {
-      fetchSessions()
-    }
-  }, [status, fetchSessions])
-
-  // Load messages when active session changes
-  useEffect(() => {
-    if (activeSessionId) {
-      fetchSessionMessages(activeSessionId)
-    }
-  }, [activeSessionId, fetchSessionMessages])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -74,184 +73,99 @@ export default function AgenticPage() {
     }
   }, [input])
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    // Validate file count (max 5 total)
-    if (attachments.length + files.length > 5) {
-      toast.error('Maximum 5 images allowed per message')
-      return
-    }
-
-    // Process each file
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast.error(`${file.name} is not an image file`)
-        continue
-      }
-
-      // Validate file size (4MB max for base64)
-      if (file.size > 4 * 1024 * 1024) {
-        toast.error(`${file.name} is too large (max 4MB)`)
-        continue
-      }
-
-      // Convert to base64
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const base64Data = event.target?.result as string
-        setAttachments(prev => [
-          ...prev,
-          {
-            data: base64Data,
-            name: file.name,
-            type: file.type
-          }
-        ])
-      }
-      reader.readAsDataURL(file)
-    }
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  const handleRemoveAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index))
-  }
-
-  const renderAttachments = (attachmentsJson: string | null) => {
-    if (!attachmentsJson) return null
-
-    try {
-      const parsedAttachments = JSON.parse(attachmentsJson)
-      return (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {parsedAttachments.map((att: any, idx: number) => (
-            <img
-              key={idx}
-              src={att.data}
-              alt={att.name || `Image ${idx + 1}`}
-              className="max-w-xs rounded-lg border"
-            />
-          ))}
-        </div>
-      )
-    } catch (e) {
-      return null
+  const handleNewChat = () => {
+    if (messages.length > 0 && confirm('Start a new chat? Current conversation will be cleared.')) {
+      setMessages([])
+      setInput('')
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading || !activeSessionId) {
-      if (!activeSessionId) {
-        toast.error('Please create or select a session first')
-      }
-      return
+    if (!input.trim() || isLoading) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim(),
     }
 
-    const userMessage = input.trim()
-    const messageAttachments = [...attachments]
-
+    setMessages((prev) => [...prev, userMessage])
     setInput('')
-    setAttachments([])
     setIsLoading(true)
     setStreamingContent('')
-    setStreamingReasoning('') // Clear previous reasoning
+    setStreamingReasoning('')
 
     try {
-      const response = await fetch('/api/agentic', {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId: activeSessionId,
-          message: userMessage,
-          attachments: messageAttachments,
-          settings: { temperature: 0.7, maxTokens: 8192, topP: 1.0 },
+          messages: [...messages, userMessage].map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          model: selectedModel,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          topP: settings.topP,
         }),
       })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to get response')
+      if (!response.ok || !response.body) {
+        throw new Error('Failed to get response')
       }
 
-      const reader = response.body?.getReader()
+      const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      let accumulatedContent = ''
-      let accumulatedReasoning = ''
+      let fullContent = ''
+      let fullReasoning = ''
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
 
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
+        for (const line of lines) {
+          if (!line.trim() || !line.startsWith('data: ')) continue
 
-                if (data.content) {
-                  accumulatedContent += data.content
+          try {
+            const data = JSON.parse(line.slice(6))
 
-                  // Continuously extract <think> tags from content (for Qwen models)
-                  const { reasoning: extractedReasoning, cleanContent } = extractThinkTags(accumulatedContent)
-
-                  // If reasoning found in content, use it
-                  if (extractedReasoning && !accumulatedReasoning) {
-                    setStreamingReasoning(extractedReasoning)
-                    setStreamingContent(cleanContent)
-                  } else {
-                    setStreamingContent(accumulatedContent)
-                  }
-                }
-
-                // Capture reasoning from models like DeepSeek-R1, GPT-OSS (separate delta.reasoning field)
-                if (data.reasoning) {
-                  accumulatedReasoning += data.reasoning
-                  setStreamingReasoning(accumulatedReasoning)
-                }
-
-                if (data.done) {
-                  console.log('[Agentic Page] Stream completed with usage:', data.usage)
-
-                  // Final extraction of <think> tags from content (for Qwen models)
-                  const { reasoning: extractedReasoning, cleanContent } = extractThinkTags(accumulatedContent)
-                  if (extractedReasoning && !accumulatedReasoning) {
-                    setStreamingReasoning(extractedReasoning)
-                    setStreamingContent(cleanContent)
-                  }
-
-                  // Reload messages to get the saved messages with cost data
-                  await fetchSessionMessages(activeSessionId)
-                  setStreamingContent('')
-                  setStreamingReasoning('')
-
-                  // Reload sessions to update the session stats in sidebar
-                  await fetchSessions()
-                }
-              } catch (e) {
-                // Ignore parse errors for incomplete chunks
-              }
+            if (data.error) {
+              toast.error(data.error)
+              continue
             }
+
+            if (data.content) {
+              fullContent += data.content
+              const { cleanContent, extractedReasoning } = extractThinkTags(fullContent)
+              setStreamingContent(cleanContent)
+              setStreamingReasoning(extractedReasoning)
+            }
+
+            if (data.done) {
+              const { cleanContent, extractedReasoning } = extractThinkTags(fullContent)
+              const assistantMessage: Message = {
+                id: Date.now().toString(),
+                role: 'assistant',
+                content: cleanContent,
+                reasoning: extractedReasoning,
+              }
+              setMessages((prev) => [...prev, assistantMessage])
+              setStreamingContent('')
+              setStreamingReasoning('')
+            }
+          } catch (e) {
+            // Ignore parse errors
           }
         }
       }
     } catch (error: any) {
-      console.error('[Agentic] Error:', error)
+      console.error('Error:', error)
       toast.error(error.message || 'Failed to send message')
-      setStreamingContent('')
-      setStreamingReasoning('')
     } finally {
       setIsLoading(false)
     }
@@ -266,69 +180,77 @@ export default function AgenticPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Mobile Backdrop */}
-      {isMobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsMobileSidebarOpen(false)}
-        />
-      )}
-
-      {/* Session Sidebar - Hidden on mobile, shown when hamburger clicked */}
-      <SessionSidebar
-        className={cn(
-          "w-80 flex-shrink-0 fixed lg:relative z-50 h-full transition-transform duration-300 lg:translate-x-0",
-          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-        onClose={() => setIsMobileSidebarOpen(false)}
-      />
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col overflow-hidden w-full">
-        {/* Mobile Header with Hamburger */}
-        <div className="lg:hidden border-b bg-card/50 backdrop-blur-sm">
-          <div className="flex items-center gap-3 px-4 py-3">
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-30 border-b bg-card/50 backdrop-blur-sm safe-top">
+        <div className="flex items-center justify-between px-3 py-3">
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold">Agentic</h1>
+          </div>
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsMobileSidebarOpen(true)}
+              onClick={handleNewChat}
               className="p-2 hover:bg-accent rounded-lg transition-colors"
-              aria-label="Open menu"
+              title="New Chat"
             >
-              <Menu className="h-5 w-5" />
+              <Plus className="h-5 w-5" />
             </button>
-            <h1 className="text-lg font-semibold">Agentic Chat</h1>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="p-2 hover:bg-accent rounded-lg transition-colors"
+              title="Settings"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* Session Header - Desktop only */}
-        <div className="hidden lg:block">
-          <SessionHeader />
+      {/* Desktop Header */}
+      <div className="hidden lg:block fixed top-0 left-0 right-0 z-30 border-b bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-4">
+            <h1 className="text-xl font-bold">Agentic Playground</h1>
+            <button
+              onClick={handleNewChat}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              New Chat
+            </button>
+          </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="px-4 py-2 border rounded-lg hover:bg-accent transition-colors flex items-center gap-2"
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </button>
         </div>
+      </div>
 
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col overflow-hidden pt-[60px] lg:pt-[72px]">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto bg-background">
+        <div className="flex-1 overflow-y-auto">
           <div className="max-w-4xl mx-auto px-3 md:px-4 py-4 md:py-6">
             {messages.length === 0 && !streamingContent ? (
               // Empty State
               <div className="flex flex-col items-center justify-center h-full text-center py-12 md:py-20 px-4">
                 <div className="p-3 md:p-4 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 mb-4 md:mb-6">
-                  <Brain className="h-10 md:h-12 w-10 md:w-12 text-white" />
+                  <Bot className="h-10 md:h-12 w-10 md:w-12 text-white" />
                 </div>
-                <h2 className="text-xl md:text-2xl font-bold mb-2">
-                  {activeSessionId ? 'Start a Conversation' : 'No Session Selected'}
-                </h2>
+                <h2 className="text-xl md:text-2xl font-bold mb-2">Start a Conversation</h2>
                 <p className="text-sm md:text-base text-muted-foreground max-w-md">
-                  {activeSessionId
-                    ? 'Ask me anything and I will use web search, code execution, and browser automation to help you.'
-                    : 'Create or select a session to start chatting with the agentic AI.'}
+                  Ask me anything and I'll help you with code, answers, and creative tasks.
                 </p>
               </div>
             ) : (
               // Messages List
               <div className="space-y-4 md:space-y-6">
-                {messages.map((message, index) => (
+                {messages.map((message) => (
                   <div
-                    key={message.id || index}
+                    key={message.id}
                     className={`flex gap-2 md:gap-4 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {/* Assistant Avatar */}
@@ -341,46 +263,19 @@ export default function AgenticPage() {
                     {/* Message Content */}
                     <div className="flex flex-col gap-1.5 md:gap-2 max-w-[85%] md:max-w-[80%]">
                       <div
-                        className={cn(
-                          'rounded-lg p-3 md:p-4 text-sm md:text-base',
+                        className={`rounded-lg p-3 md:p-4 text-sm md:text-base ${
                           message.role === 'user'
                             ? 'bg-primary text-primary-foreground ml-auto'
                             : 'bg-card border'
-                        )}
+                        }`}
                       >
-                        {/* Thinking/Reasoning Display (for assistant messages with reasoning) */}
                         {message.role === 'assistant' && message.reasoning && (
                           <ReasoningDisplay reasoning={message.reasoning} className="mb-3" />
                         )}
-
-                        <div
-                          className={cn(
-                            'prose dark:prose-invert max-w-none',
-                            message.role === 'user' && 'prose-invert'
-                          )}
-                        >
-                          {message.role === 'assistant' && getActiveSession() && isVisionModel(getActiveSession()!.model) ? (
-                            <VisionMessage content={message.content} />
-                          ) : (
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
-                          )}
+                        <div className={`prose dark:prose-invert max-w-none ${message.role === 'user' && 'prose-invert'}`}>
+                          <ReactMarkdown>{message.content}</ReactMarkdown>
                         </div>
-                        {/* Render image attachments */}
-                        {message.attachments && renderAttachments(message.attachments)}
                       </div>
-
-                      {/* Cost Badge for Assistant Messages */}
-                      {message.role === 'assistant' && (
-                        <MessageCostBadge
-                          cost={message.cost}
-                          inputTokens={message.inputTokens}
-                          outputTokens={message.outputTokens}
-                          cachedTokens={message.cachedTokens}
-                          toolCalls={message.toolCalls}
-                          showDetails
-                          className="self-start"
-                        />
-                      )}
                     </div>
 
                     {/* User Avatar */}
@@ -399,7 +294,6 @@ export default function AgenticPage() {
                       <Bot className="h-4 w-4 md:h-5 md:w-5 text-white" />
                     </div>
                     <div className="max-w-[85%] md:max-w-[80%] rounded-lg p-3 md:p-4 text-sm md:text-base bg-card border">
-                      {/* Thinking/Reasoning Display (streaming) */}
                       {streamingReasoning && (
                         <ReasoningDisplay
                           reasoning={streamingReasoning}
@@ -408,26 +302,14 @@ export default function AgenticPage() {
                           defaultExpanded
                         />
                       )}
-
                       <div className="prose dark:prose-invert max-w-none">
-                        {getActiveSession() && isVisionModel(getActiveSession()!.model) ? (
-                          <VisionMessage content={streamingContent} />
-                        ) : (
-                          <ReactMarkdown>{streamingContent}</ReactMarkdown>
-                        )}
+                        <ReactMarkdown>{streamingContent}</ReactMarkdown>
                       </div>
                       <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         <span>Generating response...</span>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Loading Messages */}
-                {isLoadingMessages && messages.length === 0 && (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
                   </div>
                 )}
 
@@ -440,71 +322,25 @@ export default function AgenticPage() {
         {/* Input Area */}
         <div className="border-t bg-card/50 backdrop-blur-sm safe-bottom">
           <div className="max-w-4xl mx-auto px-3 md:px-4 py-3 md:py-4">
-            {/* Image Preview Area */}
-            {attachments.length > 0 && (
-              <div className="mb-2 md:mb-3 flex flex-wrap gap-2">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="relative group">
-                    <img
-                      src={att.data}
-                      alt={att.name}
-                      className="h-16 w-16 md:h-20 md:w-20 object-cover rounded-lg border"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAttachment(idx)}
-                      className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
-                      {att.name}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             <form onSubmit={handleSubmit} className="flex gap-2 md:gap-3">
-              <div className="flex-1 flex items-end gap-1.5 md:gap-2">
-                {/* File upload button */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading || !activeSessionId || attachments.length >= 5}
-                  className="p-2.5 md:p-3 rounded-lg border bg-background hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  title="Upload images (max 5)"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSubmit(e)
-                    }
-                  }}
-                  placeholder={activeSessionId ? 'Ask anything...' : 'Create or select a session to start...'}
-                  className="flex-1 resize-none rounded-lg border bg-background px-3 md:px-4 py-2.5 md:py-3 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px] md:min-h-[52px] max-h-[160px] md:max-h-[200px]"
-                  rows={1}
-                  disabled={isLoading || !activeSessionId}
-                />
-              </div>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit(e)
+                  }
+                }}
+                placeholder="Ask anything..."
+                className="flex-1 resize-none rounded-lg border bg-background px-3 md:px-4 py-2.5 md:py-3 text-base md:text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[44px] md:min-h-[52px] max-h-[160px] md:max-h-[200px]"
+                rows={1}
+                disabled={isLoading}
+              />
               <button
                 type="submit"
-                disabled={!input.trim() || isLoading || !activeSessionId}
+                disabled={!input.trim() || isLoading}
                 className="px-4 md:px-6 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end min-h-[44px] flex-shrink-0"
               >
                 {isLoading ? (
@@ -517,6 +353,16 @@ export default function AgenticPage() {
           </div>
         </div>
       </div>
+
+      {/* Settings Modal */}
+      <ModelSettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        selectedModel={selectedModel}
+        onModelChange={setSelectedModel}
+        settings={settings}
+        onSettingsChange={setSettings}
+      />
     </div>
   )
 }
