@@ -128,35 +128,52 @@ export function LoginForm({ redirectTo = '/' }: LoginFormProps) {
         return
       }
 
-      // Use NextAuth's built-in redirect - it handles session cookie timing correctly
-      addDebugLog('🚀 Using NextAuth built-in redirect (redirect: true)')
-
-      // Set timeout to detect stuck authentication
-      const timeoutId = setTimeout(() => {
-        if (isLoading) {
-          addDebugLog('⚠️ Timeout: Redirect took too long (10s)')
-          setError('Redirect timeout. If login succeeded, try navigating to home page manually.')
-          setIsLoading(false)
-        }
-      }, 10000) // 10 second timeout
+      // Use redirect: false to capture and inspect the result
+      addDebugLog('🚀 Calling signIn with redirect: false to capture result...')
 
       try {
-        await signIn('credentials', {
+        const result = await signIn('credentials', {
           username: data.username,
           password: data.password,
           callbackUrl: redirectTo,
-          redirect: true,  // Let NextAuth handle the redirect after session is set
+          redirect: false,  // We'll handle redirect manually to debug
         })
 
-        clearTimeout(timeoutId)
+        // Log the complete result object
+        addDebugLog(`📊 SignIn Result: ${JSON.stringify(result, null, 2)}`)
 
-        // If we reach here, login failed (redirect would have navigated away)
-        addDebugLog('❌ Login failed - no redirect occurred')
-        setError('Login failed. Please check your credentials.')
-        setIsLoading(false)
+        if (result) {
+          addDebugLog(`  - ok: ${result.ok}`)
+          addDebugLog(`  - status: ${result.status}`)
+          addDebugLog(`  - error: ${result.error || 'null'}`)
+          addDebugLog(`  - url: ${result.url || 'null'}`)
+        }
+
+        if (result?.ok) {
+          // Success!
+          addDebugLog('✅ Authentication successful!')
+          addDebugLog(`🔄 Redirecting to: ${result.url || redirectTo}`)
+          setDebugInfo('Login successful! Redirecting...')
+
+          // Use NextAuth's URL if provided, otherwise use our redirectTo
+          const redirectUrl = result.url || redirectTo
+
+          // Hard redirect with window.location to force full page reload with new session
+          addDebugLog(`🌐 Executing: window.location.href = "${redirectUrl}"`)
+          setTimeout(() => {
+            window.location.href = redirectUrl
+          }, 500) // Small delay to show success message
+        } else {
+          // Failed
+          const errorMsg = result?.error || 'Unknown error'
+          addDebugLog(`❌ Authentication failed: ${errorMsg}`)
+          addDebugLog(`   Status code: ${result?.status || 'unknown'}`)
+
+          // Show user-friendly error message
+          setError(result?.error || 'Invalid username or password. Please try again.')
+          setIsLoading(false)
+        }
       } catch (signInErr) {
-        clearTimeout(timeoutId)
-
         // Handle different error types
         if (signInErr instanceof TypeError && signInErr.message.includes('fetch')) {
           addDebugLog('❌ Network Error: Cannot reach authentication server')
