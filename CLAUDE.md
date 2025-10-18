@@ -234,6 +234,23 @@ DO_NOT_DELETE/                        # Archived legacy code
 - **Desktop-optimized**: Larger header, spacious layout, hover states
 - **Global CSS utilities**: Safe area insets, touch scrolling, no zoom on focus
 
+### 6. Admin Dashboard (Admin-Only)
+- **Access Control**: Only visible to users with `role === 'admin'`
+- **Shield Icon Button**: Purple shield in header (mobile & desktop)
+- **Three Tabs**:
+  - **System Stats**: User counts, message counts, total cost, token usage, top models
+  - **User Management**: View/edit/delete users, toggle roles (admin/user), toggle active status
+  - **Model Management**: View all models, toggle active/inactive, sync from Groq API
+- **API Routes** (all require admin auth):
+  - `GET /api/admin/users` - List all users with filters
+  - `POST /api/admin/users` - Create new user
+  - `PATCH /api/admin/users/[id]` - Update user role/status
+  - `DELETE /api/admin/users/[id]` - Delete user
+  - `GET /api/admin/stats` - System statistics
+  - `GET /api/admin/models` - All models (including inactive)
+  - `PATCH /api/admin/models/[id]` - Update model status/pricing
+- **Security**: Returns 403 Forbidden if non-admin tries to access
+
 ---
 
 ## 🗂️ Archived Features (DO_NOT_DELETE/)
@@ -327,17 +344,114 @@ export async function GET(
 }
 ```
 
-### Database Migrations Workflow
+### Database Migrations Workflow (IMPORTANT - NO DATA LOSS!)
+
+**Adding New Fields (Safe - Preserves Data)**:
+
+When adding new fields to existing models, ALWAYS provide default values to prevent data loss:
+
+```prisma
+// ✅ CORRECT: Adding fields with defaults
+model User {
+  // ... existing fields ...
+  subscriptionTier String  @default("free")  // New field with default
+  apiCallCount     Int     @default(0)       // New nullable field
+  preferences      String? @default("{}")    // Optional field with default
+}
+```
+
+```prisma
+// ❌ WRONG: Adding required fields without defaults
+model User {
+  // ... existing fields ...
+  subscriptionTier String  // ERROR: Existing rows will fail!
+}
+```
+
+**Local Development Workflow**:
 1. Stop dev server (`Ctrl+C` or close terminal)
-2. Edit `prisma/schema.prisma`
-3. Run `npx prisma migrate dev --name <name>`
-4. Run `npx prisma generate`
+2. Edit `prisma/schema.prisma` (add fields with `@default()`)
+3. Run `npx prisma migrate dev --name add_user_subscription`
+4. Run `npx prisma generate` (regenerates Prisma client)
 5. Restart server with `app.bat`
 
-**Symptoms of outdated client:**
+**What Happens**:
+- Creates `prisma/migrations/TIMESTAMP_add_user_subscription/migration.sql`
+- SQL: `ALTER TABLE "User" ADD COLUMN "subscriptionTier" TEXT NOT NULL DEFAULT 'free'`
+- **Existing users automatically get `subscriptionTier = 'free'`** (NO DATA LOSS!)
+- Prisma client regenerated with new types
+
+**Vercel Deployment (Automatic)**:
+- Vercel runs `prisma migrate deploy` during build
+- Only applies NEW migrations (skips already-applied)
+- Production data is PRESERVED
+- No manual intervention needed
+
+**Migration Commands**:
+```bash
+# Local development
+npx prisma migrate dev --name descriptive_name   # Create & apply migration
+npx prisma generate                               # Regenerate client
+
+# Check status
+npx prisma migrate status                         # List pending migrations
+
+# Production (Vercel does this automatically)
+npx prisma migrate deploy                         # Apply pending migrations
+
+# ⚠️ DANGER: Only use locally, NEVER in production
+npx prisma migrate reset                          # Deletes all data and re-runs migrations
+```
+
+**Best Practices**:
+
+✅ **DO**:
+- Always add `@default()` for new non-nullable fields
+- Use descriptive migration names: `add_user_preferences`, `add_model_pricing`
+- Test migrations locally before pushing to GitHub
+- Commit migration files to git (Vercel needs them)
+- Use `@default(now())` for DateTime fields
+- Use `@default(0)` for numeric fields
+- Use `@default("")` or `@default("{}")` for strings
+
+❌ **DON'T**:
+- Never run `prisma migrate reset` in production (DELETES ALL DATA!)
+- Never manually delete migration files after deploying
+- Never change existing migrations (create new ones instead)
+- Never deploy without testing migrations locally
+- Never add required fields without defaults (breaks existing rows)
+
+**Example: Adding Multiple Fields**:
+```prisma
+model AgenticSession {
+  // ... existing fields ...
+
+  // New fields (safe to add)
+  starred       Boolean  @default(false)
+  folder        String   @default("Uncategorized")
+  customTitle   String?  // Optional, no default needed
+  lastEditedAt  DateTime @default(now())
+}
+```
+
+```bash
+# Create migration
+npx prisma migrate dev --name add_session_organization_fields
+
+# Migration creates SQL like:
+# ALTER TABLE "AgenticSession" ADD COLUMN "starred" BOOLEAN NOT NULL DEFAULT false;
+# ALTER TABLE "AgenticSession" ADD COLUMN "folder" TEXT NOT NULL DEFAULT 'Uncategorized';
+# ALTER TABLE "AgenticSession" ADD COLUMN "customTitle" TEXT;
+# ALTER TABLE "AgenticSession" ADD COLUMN "lastEditedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+```
+
+**Symptoms of Outdated Client**:
 - Slow API responses (10+ seconds)
 - TypeScript errors for new fields
 - Database queries fail
+- "Unknown field" errors
+
+**Fix**: Stop server, run `npx prisma generate`, restart server
 
 ### API Routes (Next.js 15)
 All API routes must include:

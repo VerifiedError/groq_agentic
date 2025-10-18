@@ -12,12 +12,15 @@ import {
   Settings,
   Plus,
   RefreshCw,
+  Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import ReactMarkdown from 'react-markdown'
 import { ReasoningDisplay } from '@/components/agentic/reasoning-display'
 import { extractThinkTags } from '@/lib/reasoning-parser'
 import { ModelSettingsModal } from '@/components/playground/model-settings-modal'
+import { AdminDashboard } from '@/components/admin/admin-dashboard'
+import { isAdmin } from '@/lib/admin-middleware'
 
 interface Model {
   id: string
@@ -42,6 +45,7 @@ export default function HomePage() {
   const [streamingReasoning, setStreamingReasoning] = useState('')
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   const [selectedModel, setSelectedModel] = useState('llama-3.3-70b-versatile')
   const [settings, setSettings] = useState({
     temperature: 0.7,
@@ -188,6 +192,15 @@ export default function HomePage() {
             <h1 className="text-lg font-semibold">Agentic</h1>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin(session) && (
+              <button
+                onClick={() => setShowAdminDashboard(true)}
+                className="p-2 hover:bg-accent rounded-lg transition-colors"
+                title="Admin Dashboard"
+              >
+                <Shield className="h-5 w-5 text-purple-500" />
+              </button>
+            )}
             <button
               onClick={handleNewChat}
               className="p-2 hover:bg-accent rounded-lg transition-colors"
@@ -219,13 +232,24 @@ export default function HomePage() {
               New Chat
             </button>
           </div>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="px-4 py-2 border rounded-lg hover:bg-accent transition-colors flex items-center gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdmin(session) && (
+              <button
+                onClick={() => setShowAdminDashboard(true)}
+                className="px-4 py-2 border border-purple-500 text-purple-600 dark:text-purple-400 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors flex items-center gap-2"
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </button>
+            )}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="px-4 py-2 border rounded-lg hover:bg-accent transition-colors flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
+          </div>
         </div>
       </div>
 
@@ -362,6 +386,12 @@ export default function HomePage() {
         onModelChange={setSelectedModel}
         settings={settings}
         onSettingsChange={setSettings}
+      />
+
+      {/* Admin Dashboard */}
+      <AdminDashboard
+        isOpen={showAdminDashboard}
+        onClose={() => setShowAdminDashboard(false)}
       />
     </div>
   )
