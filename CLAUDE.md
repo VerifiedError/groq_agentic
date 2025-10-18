@@ -44,9 +44,15 @@ This file provides guidance when working with code in this repository.
 - **Build Command**: `npm run build`
 - **Start Command**: `npm start`
 
-**One-Click Deployment:**
+**One-Click Deployment (Vercel CLI):**
 ```bash
-vercel-update.bat  # Commit, push, and deploy to Vercel
+vercel-update.bat  # Commit, push, and deploy via Vercel CLI
+```
+
+**Prerequisites:**
+```bash
+npm install -g vercel  # Install Vercel CLI globally
+vercel login           # Authenticate with Vercel (one-time)
 ```
 
 **What it does:**
@@ -54,8 +60,13 @@ vercel-update.bat  # Commit, push, and deploy to Vercel
 2. Prompts for commit message (if changes exist)
 3. Commits all changes with provided message
 4. Pushes to GitHub `master` branch
-5. Triggers automatic Vercel deployment
-6. Opens Vercel dashboard for monitoring
+5. Checks for Vercel CLI installation
+6. Authenticates with Vercel (if needed)
+7. **Deploys directly via `vercel --prod --yes`**
+8. Shows deployment progress in real-time
+9. Displays final production URL
+
+**Fallback:** If Vercel CLI is not installed, falls back to GitHub auto-deploy
 
 **Deployment Checklist:**
 - ✅ All API routes have `export const dynamic = 'force-dynamic'`
