@@ -105,15 +105,16 @@ docker-start.bat  # Interactive: Build & start, Stop, View logs, Clean rebuild
 
 ## 📋 Project Overview
 
-**Agentic** - Simplified AI chat application with Next.js 15, Groq Compound AI, and built-in thinking/reasoning display.
+**Playground** - Open source AI playground with Next.js 15, Groq Compound AI, and built-in thinking/reasoning display.
 
 ### Tech Stack
 - **Framework**: Next.js 15.5.5 (App Router, Turbopack)
 - **UI**: React 19, TypeScript, Tailwind CSS, shadcn/ui
 - **Database**: PostgreSQL (Vercel/Production), SQLite (Docker/Local)
-- **Auth**: NextAuth.js v4 (credentials, bcrypt)
+- **Auth**: NextAuth.js v4 (credentials, bcrypt, self-registration)
 - **AI**: Groq SDK (streaming responses with reasoning)
 - **Architecture**: Single-page chat interface (simplified from multi-session)
+- **Design**: Clean white background with black borders (high-contrast)
 
 ### Database Schema
 
@@ -128,43 +129,52 @@ docker-start.bat  # Interactive: Build & start, Stop, View logs, Clean rebuild
 - Rate limiting (5 attempts per 15 min, 30 min block)
 - Role-based access (admin/user)
 - Account status management (isActive flag)
+- **Self-registration** at `/register` (new users get 'user' role)
 
 ### Application Structure
 
 ```
 app/
 ├── api/
-│   ├── chat/route.ts                 # Main streaming chat (SSE) *[CURRENT]*
-│   ├── models/route.ts               # Fetch models from DB
-│   ├── models/refresh/route.ts       # Sync models from Groq API
-│   └── auth/[...nextauth]/route.ts   # NextAuth handler
-├── page.tsx                          # Root chat interface *[CURRENT - Simplified]*
-├── login/page.tsx                    # Login (username/password, Suspense-wrapped)
-└── playground/                       # *[ARCHIVED - See DO_NOT_DELETE/]*
+│   ├── chat/route.ts                     # Main streaming chat (SSE)
+│   ├── models/route.ts                   # Fetch models from DB
+│   ├── models/refresh/route.ts           # Sync models from Groq API
+│   ├── auth/
+│   │   ├── [...nextauth]/route.ts        # NextAuth handler
+│   │   └── register/route.ts             # User registration API *[NEW]*
+│   └── admin/                            # Admin-only routes
+│       ├── users/route.ts                # User management
+│       ├── models/route.ts               # Model management
+│       └── stats/route.ts                # System statistics
+├── page.tsx                              # Root chat interface (Playground)
+├── login/page.tsx                        # Login (white/black design) *[UPDATED]*
+└── register/page.tsx                     # Registration page *[NEW]*
 
-components/agentic/
-├── reasoning-display.tsx             # Thinking/reasoning UI *[ACTIVE]*
-└── reasoning-card.tsx                # Individual reasoning step *[ACTIVE]*
-
-components/playground/
-├── model-settings-modal.tsx          # Temperature, maxTokens, topP settings
-└── *[Other components archived]*     # *[See DO_NOT_DELETE/]*
+components/
+├── agentic/
+│   ├── reasoning-display.tsx             # Thinking/reasoning UI
+│   └── reasoning-card.tsx                # Individual reasoning step
+├── auth/
+│   ├── login-form.tsx                    # Login form (black borders) *[UPDATED]*
+│   ├── register-form.tsx                 # Registration form *[NEW]*
+│   └── password-input.tsx                # Reusable password field *[UPDATED]*
+├── admin/
+│   ├── admin-dashboard.tsx               # Admin panel
+│   ├── user-management-tab.tsx           # User CRUD
+│   └── model-management-tab.tsx          # Model CRUD
+└── playground/
+    └── model-settings-modal.tsx          # Model settings
 
 lib/
-├── auth.ts                           # NextAuth config (bcrypt, rate limiting)
-├── auth/password.ts                  # Password hashing utilities
-├── auth/login-rate-limit.ts          # Rate limiting system
-├── groq.ts                           # Groq SDK + pricing
-└── reasoning-parser.ts               # Extract <think> tags from AI responses
-
-DO_NOT_DELETE/                        # Archived legacy code
-├── app/page.tsx                      # Old multi-session chat interface
-├── components/agentic/               # Session management components (10 files)
-│   ├── session-sidebar.tsx
-│   ├── new-session-button.tsx
-│   ├── vision-message.tsx
-│   └── ...
-└── stores/agentic-session-store.ts   # Zustand session store
+├── version.ts                            # APP_NAME, APP_VERSION, APP_TAGLINE *[UPDATED]*
+├── auth.ts                               # NextAuth config (bcrypt, rate limiting)
+├── auth/
+│   ├── password.ts                       # Password hashing utilities
+│   └── login-rate-limit.ts               # Rate limiting system
+├── admin-utils.ts                        # Client-safe admin helpers
+├── admin-middleware.ts                   # Server-side admin checks
+├── groq.ts                               # Groq SDK + pricing
+└── reasoning-parser.ts                   # Extract <think> tags
 ```
 
 ### Responsive Design (Mobile & Desktop)
@@ -207,14 +217,23 @@ DO_NOT_DELETE/                        # Archived legacy code
 - **ReasoningDisplay**: Collapsible UI showing AI's thought process
 - Clean content shown (reasoning stripped from final message)
 
-### 2. Authentication (Secure, Production-Ready)
-- **Username/password login** with bcrypt hashing (12 rounds)
-- **Rate limiting**: 5 failed attempts → 30-minute block
+### 2. Authentication & Registration (Secure, Production-Ready)
+- **Self-registration** at `/register` - Users can create accounts
+  - Username, email, password, confirm password validation
+  - Zod schema validation (username: 3-20 chars, alphanumeric, email format)
+  - Bcrypt password hashing (12 rounds)
+  - Uniqueness checks (username/email)
+  - New users automatically assigned 'user' role
+  - Clean white/black UI design
+- **Username/password login** at `/login`
+  - Bcrypt password verification
+  - Rate limiting: 5 failed attempts → 30-minute block
+  - Auto-redirect to registration page
 - **Role-based access**: admin/user roles
 - **Account management**: isActive flag, lastLoginAt tracking
 - **JWT sessions**: httpOnly cookies, 7-day expiry
 - **Protected routes**: Middleware redirects to /login if unauthenticated
-- **Suspense-wrapped login**: Next.js 15 compliant (useSearchParams)
+- **Suspense-wrapped pages**: Next.js 15 compliant
 
 ### 3. Model Settings
 - **Temperature**: 0-2 range (creativity control)
@@ -229,12 +248,35 @@ DO_NOT_DELETE/                        # Archived legacy code
 - Vision models auto-detected (pattern matching)
 - Fallback to hardcoded `GROQ_PRICING` if DB empty
 
-### 5. Responsive Design
+### 5. UI Design System (Clean White/Black Theme)
+- **Background**: White (#FFFFFF) or light gray (#F9FAFB)
+- **Borders**: Black (#000000), 2px solid
+- **Input Fields**:
+  - White background with 2px black borders
+  - Focus state: Gray-900 ring with subtle shadow
+  - Border radius: 8px (rounded-lg)
+- **Buttons**:
+  - Primary: Black background, white text
+  - Hover: Gray-800 (#1F2937)
+  - Disabled: Gray-400
+- **Typography**:
+  - Headings: Gray-900 (#111827)
+  - Body text: Gray-600 (#4B5563)
+  - Muted text: Gray-500 (#6B7280)
+  - Placeholders: Gray-500
+- **Design Principles**:
+  - High contrast for accessibility
+  - Clean, professional appearance
+  - No gradients on auth pages
+  - Consistent 2px borders
+  - Sharp, modern aesthetic
+
+### 6. Responsive Design
 - **Mobile-first**: 16px font, 44px touch targets, safe areas
 - **Desktop-optimized**: Larger header, spacious layout, hover states
 - **Global CSS utilities**: Safe area insets, touch scrolling, no zoom on focus
 
-### 6. Admin Dashboard (Admin-Only)
+### 7. Admin Dashboard (Admin-Only)
 - **Access Control**: Only visible to users with `role === 'admin'`
 - **Shield Icon Button**: Purple shield in header (mobile & desktop)
 - **Three Tabs**:
@@ -609,6 +651,46 @@ robocopy d:\agentic c:\agentic /E /MOVE
 ---
 
 ## 📖 Recent Major Changes
+
+### Registration System & Rebranding (Commit `d6245af`, Oct 2025)
+**What Changed**:
+- Added user registration system with `/register` page
+- Rebranded from "Agentic" to "Playground - Open Source AI Playground"
+- Complete GUI overhaul: White background with black borders (2px)
+- Updated authentication UI with clean, professional design
+
+**Backend**:
+- `app/api/auth/register/route.ts` - Registration API endpoint
+  - Zod validation (username, email, password, confirmPassword)
+  - Username/email uniqueness checks
+  - Bcrypt password hashing (12 rounds)
+  - Auto-assigns 'user' role to new registrations
+
+**Frontend**:
+- `app/register/page.tsx` - Registration page with white/black design
+- `components/auth/register-form.tsx` - Registration form component
+  - Username: 3-20 chars, alphanumeric + underscore
+  - Email: valid format validation
+  - Password: 8+ chars minimum
+  - Confirm password matching
+  - Auto-redirect to login on success
+- `components/auth/password-input.tsx` - Enhanced with `borderColor` prop
+  - Supports 'black' or 'gray' borders for different themes
+
+**UI/UX Overhaul**:
+- `app/login/page.tsx` - White card with 2px black border
+- `components/auth/login-form.tsx` - Black bordered inputs, black buttons
+  - Added "Register" link at bottom
+  - Removed gradient backgrounds
+  - Focus states with gray-900 ring
+- `app/page.tsx` - Updated headers to "Playground"
+- `lib/version.ts` - Updated APP_NAME and added APP_TAGLINE
+
+**Design System**:
+- Background: White (#FFFFFF) / Light gray (#F9FAFB)
+- Borders: Black (#000000), 2px solid
+- Buttons: Black background, white text
+- High-contrast, professional, accessible design
 
 ### Repository Cleanup (Issue #69, Oct 2025)
 **What Changed**:

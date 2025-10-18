@@ -1,6 +1,6 @@
-# Agentic
+# Playground
 
-> A modern AI chat application powered by Groq's compound AI with built-in reasoning display, secure authentication, and admin management.
+> An open source AI playground powered by Groq's compound AI with built-in reasoning display, secure authentication, and self-service registration.
 
 [![Deployment](https://img.shields.io/badge/deployment-vercel-black)](https://agentic-hsp2t0buj-verifiederrors-projects.vercel.app)
 [![Next.js](https://img.shields.io/badge/Next.js-15.5.5-black)](https://nextjs.org/)
@@ -11,10 +11,12 @@
 
 - **Streaming AI Responses** - Real-time streaming chat with Groq's compound AI models
 - **Reasoning Display** - Transparent AI thinking process extracted from `<think>` tags
+- **Self-Service Registration** - Users can create accounts at `/register` with username, email, and password
 - **Secure Authentication** - Bcrypt password hashing with rate limiting (5 attempts, 30-min block)
 - **Role-Based Access** - Admin and user roles with protected routes
 - **Admin Dashboard** - User management, system stats, and model configuration
 - **Model Settings** - Configurable temperature, max tokens, and top-p sampling
+- **Clean White/Black UI** - High-contrast design with white backgrounds and 2px black borders
 - **Responsive Design** - Mobile-first UI with 44px touch targets and safe area insets
 - **Production-Ready** - Auto-deploys to Vercel with PostgreSQL database
 
@@ -85,6 +87,9 @@
 
    Navigate to [http://localhost:13380](http://localhost:13380)
 
+   - **Login**: Use admin credentials (created in step 4)
+   - **Register**: Create a new user account at [http://localhost:13380/register](http://localhost:13380/register)
+
 ## Deployment
 
 ### Vercel (Recommended)
@@ -154,11 +159,12 @@ docker-compose up --build
 
 ### Authentication Flow
 
-1. User logs in with username/password
-2. Password verified with bcrypt (12 rounds)
-3. Rate limiting: 5 failed attempts → 30-min block
-4. JWT session created (httpOnly cookie, 7-day expiry)
-5. Middleware redirects unauthenticated users to `/login`
+1. User registers at `/register` or logs in at `/login` with username/password
+2. Registration validates username/email uniqueness and password strength (8+ characters)
+3. Passwords hashed with bcrypt (12 rounds) and stored as `passwordHash`
+4. Login rate limiting: 5 failed attempts → 30-min block
+5. JWT session created (httpOnly cookie, 7-day expiry)
+6. Middleware redirects unauthenticated users to `/login`
 
 ## Architecture
 
@@ -168,13 +174,16 @@ app/
 │   ├── chat/route.ts              # Streaming AI chat (SSE)
 │   ├── models/route.ts            # Fetch available models
 │   ├── models/refresh/route.ts    # Sync models from Groq API
-│   ├── auth/[...nextauth]/route.ts # NextAuth handler
+│   ├── auth/
+│   │   ├── [...nextauth]/route.ts # NextAuth handler
+│   │   └── register/route.ts      # User registration API
 │   └── admin/                     # Admin-only endpoints
 │       ├── users/route.ts         # User management
 │       ├── models/route.ts        # Model management
 │       └── stats/route.ts         # System statistics
 ├── page.tsx                       # Main chat interface
-└── login/page.tsx                 # Login page
+├── login/page.tsx                 # Login page
+└── register/page.tsx              # Registration page
 
 components/
 ├── agentic/
@@ -186,7 +195,9 @@ components/
 │   ├── model-management-tab.tsx   # Model CRUD
 │   └── system-stats-tab.tsx       # System metrics
 └── auth/
-    └── login-form.tsx             # Login form with validation
+    ├── login-form.tsx             # Login form with validation
+    ├── register-form.tsx          # Registration form with validation
+    └── password-input.tsx         # Reusable password input with toggle
 
 lib/
 ├── auth.ts                        # NextAuth configuration
@@ -206,6 +217,7 @@ lib/
 - `POST /api/chat` - Stream AI responses (SSE)
 - `GET /api/models` - Fetch available models
 - `POST /api/auth/[...nextauth]` - NextAuth authentication
+- `POST /api/auth/register` - User registration (username, email, password)
 
 ### Admin Endpoints (Protected)
 
@@ -216,6 +228,27 @@ lib/
 - `PATCH /api/admin/models/[id]` - Update model settings
 - `POST /api/models/refresh` - Sync models from Groq API
 - `GET /api/admin/stats` - System statistics
+
+## UI Design System
+
+The application uses a clean, high-contrast white and black design system:
+
+### Color Palette
+
+- **Background**: White (`#FFFFFF`) or Light Gray (`#F9FAFB`)
+- **Borders**: Black (`#000000`), 2px solid
+- **Text**: Gray-900 (`#111827`) for headings, Gray-600 (`#4B5563`) for body
+- **Buttons**: Black background (`#000000`), white text, hover state Gray-800 (`#1F2937`)
+- **Focus States**: Gray-900 ring with shadow
+- **Error States**: Red-500 borders, Red-50 backgrounds
+
+### Design Principles
+
+- **High Contrast**: Strong black borders on white backgrounds for clarity
+- **Consistent Spacing**: 2px borders, 3px padding on inputs, rounded corners (8-12px)
+- **Touch-Friendly**: 44px minimum touch targets (WCAG AAA)
+- **Mobile-First**: 16px base font size prevents iOS zoom on input focus
+- **Accessibility**: Clear error messages, proper labels, keyboard navigation
 
 ## Development
 
