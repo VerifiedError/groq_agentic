@@ -162,6 +162,36 @@ lib/
 └── workspace-protocol.ts             # Command parser
 ```
 
+### Responsive Design Components
+
+**Mobile-First Components** (`components/playground/`):
+- `mobile-sidebar.tsx` - Slide-out chat history drawer
+- `settings-bottom-sheet.tsx` - Drag-to-dismiss settings
+- `quick-actions-mobile.tsx` - Horizontal scrollable actions
+- `responsive-container.tsx` - Adaptive layout containers
+
+**Responsive Utilities** (`lib/breakpoints.ts`):
+- Breakpoint definitions (mobile/tablet/desktop/largeDesktop)
+- Touch target sizes (WCAG 2.1 compliant, 44px-56px)
+- Tailwind helper classes
+- Z-index layer system
+- Sidebar and container widths
+
+**Mobile Features**:
+- Swipe gestures (sidebar close, settings dismiss)
+- Touch-friendly UI (48px minimum touch targets)
+- Backdrop overlays with blur
+- Body scroll locking
+- Keyboard navigation (ESC to close)
+- Horizontal scrolling quick actions
+- Tabbed settings (Basic/Advanced)
+
+**Desktop Features**:
+- Hover tooltips
+- Larger containers (800px max)
+- Icon-only compact buttons
+- Persistent sidebar option
+
 ---
 
 ## 🔑 Key Features
