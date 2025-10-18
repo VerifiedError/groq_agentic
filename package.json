@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "postinstall": "prisma generate",
     "seed:presets": "npx tsx prisma/seed-presets.ts"
   },
   "dependencies": {

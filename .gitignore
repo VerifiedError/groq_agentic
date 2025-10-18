@@ -83,3 +83,9 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Backups
+backups/
+
+# Vercel
+.vercel
