@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:presets": "npx tsx prisma/seed-presets.ts"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

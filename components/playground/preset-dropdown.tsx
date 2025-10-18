@@ -142,7 +142,12 @@ export function PresetDropdown({
                           <Star className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" fill="currentColor" />
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{preset.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{preset.name}</span>
+                            <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded border border-blue-500/20 flex-shrink-0">
+                              Default
+                            </span>
+                          </div>
                           {preset.description && (
                             <div className="text-xs text-muted-foreground truncate mt-0.5">
                               {preset.description}
